@@ -38,11 +38,3 @@ Follow these steps EXACTLY to ensure sync works without "Auth Error" or "Malform
     - (The app will now handle it even if you copy the whole URL or the code= part).
 - Paste the code into TruNotes and click "Verify & Connect".
 
-3. WHY DID IT FAIL BEFORE?
---------------------------
-- You likely used "Web Application" client type (not Desktop).
-- The code was hardcoded to 'http://localhost' but Google Console might have expected something else.
-- The new Release v5 lets you adjust these settings.
-
-NEXT ACTION:
-I am building Release v5 now. Please approve the build command.
