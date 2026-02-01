@@ -1,0 +1,48 @@
+GOOGLE DRIVE SYNC SETUP GUIDE
+============================
+
+Follow these steps EXACTLY to ensure sync works without "Auth Error" or "Malformed Code".
+
+1. GOOGLE CLOUD CONSOLE
+-----------------------
+- Go to: https://console.cloud.google.com/
+- Create or select a project.
+- Search for "Google Drive API" and click ENABLE.
+- Go to "APIs & Services" > "OAuth consent screen":
+    - User Type: External.
+    - Add your email and developer info.
+    - App Name: "TruNotes V2".
+    - Scopes: Add ".../auth/drive.file".
+    - Test Users: Add your own Gmail address (IMPORTANT).
+- Go to "APIs & Services" > "Credentials":
+    - Click "Create Credentials" > "OAuth client ID".
+    - Application Type: SELECT "Desktop app".
+    - Name it "TruNotes Desktop".
+    - Click CREATE.
+- Copy your Client ID and Client Secret.
+
+2. TRUNOTES APP SETTINGS
+------------------------
+- Open TruNotes (Release v5).
+- Go to Settings > Sync.
+- Paste your Client ID and Client Secret.
+- Ensure Redirect URI is set to: http://localhost
+- Click "Save Keys".
+- Click "Log In".
+- In the browser window that opens:
+    - Log in to your Gmail.
+    - You might see "Google hasn't verified this app" -> Click Advanced > Go to TruNotes (unsafe).
+    - Allow permissions.
+    - You will then see an error like "This site can’t be reached" (localhost refused connect).
+    - LOOK AT THE ADDRESS BAR. Copy the code at the end: `code=4/0AbUR...`
+    - (The app will now handle it even if you copy the whole URL or the code= part).
+- Paste the code into TruNotes and click "Verify & Connect".
+
+3. WHY DID IT FAIL BEFORE?
+--------------------------
+- You likely used "Web Application" client type (not Desktop).
+- The code was hardcoded to 'http://localhost' but Google Console might have expected something else.
+- The new Release v5 lets you adjust these settings.
+
+NEXT ACTION:
+I am building Release v5 now. Please approve the build command.
