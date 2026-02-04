@@ -50,6 +50,15 @@ public class HourlyWidget extends AppWidgetProvider {
         editIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         views.setOnClickPendingIntent(R.id.btn_edit_log, PendingIntent.getActivity(context, 12, editIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE));
 
+        // Redirect to app on header click
+        Intent openAppIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (openAppIntent != null) {
+            openAppIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            openAppIntent.putExtra("view", "dashboard"); // Hourly is on dashboard in app
+            PendingIntent openAppPI = PendingIntent.getActivity(context, 13, openAppIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            views.setOnClickPendingIntent(R.id.nav_header, openAppPI);
+        }
+
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 

@@ -216,6 +216,21 @@ export const SettingsView: React.FC = () => {
                         >
                             Log Out
                         </button>
+                        <button
+                            onClick={() => (window as any).electron ? (window as any).electron.openExternal('https://github.com/akgetscreative-wq/TruNotesV2/releases') : window.open('https://github.com/akgetscreative-wq/TruNotesV2/releases', '_blank')}
+                            style={{
+                                padding: '0.75rem 1.5rem',
+                                borderRadius: '12px',
+                                background: 'rgba(34, 197, 94, 0.1)',
+                                color: '#22c55e',
+                                border: '1px solid rgba(34, 197, 94, 0.2)',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '0.5rem'
+                            }}
+                        >
+                            <Cloud size={18} /> Update
+                        </button>
                     </div>
                 ) : (
                     <div style={{ maxWidth: '400px', background: 'rgba(0,0,0,0.1)', padding: '1.5rem', borderRadius: '16px' }}>

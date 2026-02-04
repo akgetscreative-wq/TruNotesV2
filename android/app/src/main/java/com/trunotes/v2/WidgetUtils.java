@@ -13,12 +13,22 @@ public class WidgetUtils {
 
     public static String getString(Context context, String key) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(key, null);
+        // Try prefixed first (Capacitor default)
+        String value = prefs.getString("_cap_" + key, null);
+        if (value == null) {
+            // Fallback to raw key
+            value = prefs.getString(key, null);
+        }
+        return value;
     }
 
     public static void setString(Context context, String key, String value) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(key, value).apply();
+        // We set both to be safe, but primarily the prefixed one
+        prefs.edit()
+            .putString("_cap_" + key, value)
+            .putString(key, value)
+            .apply();
     }
 
     public static List<JSONObject> getTodos(Context context) {

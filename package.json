@@ -1,7 +1,7 @@
 {
   "name": "trunotesv2",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "TruNotes v2 - A powerful note-taking app",
   "author": "TruNotes Team",
   "main": "dist-electron/main.js",

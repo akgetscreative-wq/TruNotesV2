@@ -67,12 +67,10 @@ class TodoRemoteViewsFactory implements RemoteViewsService.RemoteViewsFactory {
             rv.setTextViewText(R.id.todo_text, text);
             
             if (completed) {
-                rv.setImageViewResource(R.id.todo_checkbox, android.R.drawable.checkbox_on_background);
-                rv.setTextColor(R.id.todo_text, Color.parseColor("#88FFFFFF"));
-                // Strike-through (only works on some Android versions via RemoteViews, but we try)
-                // Note: RemoteViews doesn't support setPaintFlags directly easily, so we just dim it.
+                rv.setImageViewResource(R.id.todo_checkbox, R.drawable.ic_checkbox_selected);
+                rv.setTextColor(R.id.todo_text, Color.parseColor("#44FFFFFF"));
             } else {
-                rv.setImageViewResource(R.id.todo_checkbox, android.R.drawable.checkbox_off_background);
+                rv.setImageViewResource(R.id.todo_checkbox, R.drawable.ic_checkbox_unselected);
                 rv.setTextColor(R.id.todo_text, Color.WHITE);
             }
 

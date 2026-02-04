@@ -1,5 +1,5 @@
 import { openDB, type DBSchema } from 'idb';
-import type { Note, Todo } from '../types';
+import type { Note, Todo, ActivitySession } from '../types';
 import { Preferences } from '@capacitor/preferences';
 import { format } from 'date-fns';
 
@@ -19,11 +19,17 @@ interface TruNotesDB extends DBSchema {
         value: {
             date: string;
             logs: { [hour: number]: string };
+            updatedAt?: number;
         };
+    };
+    activity_sessions: {
+        key: string;
+        value: ActivitySession;
+        indexes: { 'by-date': string; 'by-device': string };
     };
 }
 
-const dbPromise = openDB<TruNotesDB>('trunotes-db', 5, {
+const dbPromise = openDB<TruNotesDB>('trunotes-db', 6, {
     upgrade(db, oldVersion, _newVersion, transaction) {
         let noteStore;
         if (oldVersion < 1) {
@@ -33,10 +39,8 @@ const dbPromise = openDB<TruNotesDB>('trunotes-db', 5, {
             noteStore = transaction.objectStore('notes');
         }
 
-        if (oldVersion < 2) {
-            if (!noteStore.indexNames.contains('by-tags')) {
-                noteStore.createIndex('by-tags', 'tags', { multiEntry: true });
-            }
+        if (oldVersion < 2 && !noteStore.indexNames.contains('by-tags')) {
+            noteStore.createIndex('by-tags', 'tags', { multiEntry: true });
         }
 
         if (oldVersion < 3) {
@@ -51,56 +55,83 @@ const dbPromise = openDB<TruNotesDB>('trunotes-db', 5, {
             }
         }
 
-        if (oldVersion < 5) {
-            if (!db.objectStoreNames.contains('hourly_logs')) {
-                db.createObjectStore('hourly_logs', { keyPath: 'date' });
+        if (oldVersion < 5 && !db.objectStoreNames.contains('hourly_logs')) {
+            db.createObjectStore('hourly_logs', { keyPath: 'date' });
+        }
+
+        if (oldVersion < 6) {
+            if (!db.objectStoreNames.contains('activity_sessions')) {
+                const activityStore = db.createObjectStore('activity_sessions', { keyPath: 'id' });
+                activityStore.createIndex('by-date', 'date');
+                activityStore.createIndex('by-device', 'deviceType');
             }
         }
     },
 });
 
 export const storage = {
+    // ... preceding methods ...
+    async saveActivitySession(session: ActivitySession): Promise<void> {
+        const db = await dbPromise;
+        await db.put('activity_sessions', session);
+        this.notifyListeners();
+    },
+
+    async getActivitySessions(date: string): Promise<ActivitySession[]> {
+        const db = await dbPromise;
+        return db.getAllFromIndex('activity_sessions', 'by-date', date);
+    },
     async getAllNotes(): Promise<Note[]> {
         const db = await dbPromise;
-        return db.getAll('notes');
+        const all = await db.getAll('notes');
+        return all.filter(n => !n.deleted);
     },
 
     async getNote(id: string): Promise<Note | undefined> {
         const db = await dbPromise;
-        return db.get('notes', id);
+        const note = await db.get('notes', id);
+        return note?.deleted ? undefined : note;
     },
 
     async saveNote(note: Note): Promise<string> {
         const db = await dbPromise;
-        await db.put('notes', note);
+        const updatedNote = { ...note, updatedAt: note.updatedAt || Date.now() };
+        await db.put('notes', updatedNote);
         this.notifyListeners();
-        return note.id;
+        return updatedNote.id;
     },
 
     async deleteNote(id: string): Promise<void> {
         const db = await dbPromise;
-        await db.delete('notes', id);
-        this.notifyListeners();
+        const note = await db.get('notes', id);
+        if (note) {
+            note.deleted = true;
+            note.updatedAt = Date.now();
+            await db.put('notes', note);
+            this.notifyListeners();
+        }
     },
 
     async getTodos(): Promise<Todo[]> {
         const db = await dbPromise;
-        return db.getAll('todos');
+        const all = await db.getAll('todos');
+        return all.filter(t => !t.deleted);
     },
 
     async getTodosByDate(date: string): Promise<Todo[]> {
         const db = await dbPromise;
-        return db.getAllFromIndex('todos', 'by-target-date', date);
+        const all = await db.getAllFromIndex('todos', 'by-target-date', date);
+        return all.filter(t => !t.deleted);
     },
 
     async getAllTodos(): Promise<Todo[]> {
         const db = await dbPromise;
-        return db.getAll('todos');
+        const all = await db.getAll('todos');
+        return all.filter(t => !t.deleted);
     },
 
     async saveTodo(todo: Todo): Promise<void> {
         const db = await dbPromise;
-        // Ensure updatedAt is present if missing (backwards compatibility)
         const updatedTodo = { ...todo, updatedAt: todo.updatedAt || Date.now() };
         await db.put('todos', updatedTodo);
         this.notifyListeners();
@@ -108,8 +139,13 @@ export const storage = {
 
     async deleteTodo(id: string): Promise<void> {
         const db = await dbPromise;
-        await db.delete('todos', id);
-        this.notifyListeners();
+        const todo = await db.get('todos', id);
+        if (todo) {
+            todo.deleted = true;
+            todo.updatedAt = Date.now();
+            await db.put('todos', todo);
+            this.notifyListeners();
+        }
     },
 
     async getHourlyLog(date: string) {
@@ -119,7 +155,7 @@ export const storage = {
 
     async saveHourlyLog(date: string, logs: { [hour: number]: string }) {
         const db = await dbPromise;
-        await db.put('hourly_logs', { date, logs });
+        await db.put('hourly_logs', { date, logs, updatedAt: Date.now() });
         this.notifyListeners();
     },
 
@@ -128,34 +164,31 @@ export const storage = {
         const notes = await db.getAll('notes');
         const todos = await db.getAll('todos');
         const hourlyLogs = await db.getAll('hourly_logs');
-        return { notes, todos, hourlyLogs, timestamp: Date.now() };
+        const activity = await db.getAll('activity_sessions');
+        return { notes, todos, hourlyLogs, activity, timestamp: Date.now() };
     },
 
-    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[] }) {
-        // ALWAYS ADDITIVE - Do not clear local data anymore
-        console.log("storage: Performing additive import (merge)...");
+    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[], activity?: ActivitySession[] }) {
+        console.log("storage: Performing smart merge...");
         await this.mergeDatabase(data);
         this.notifyListeners();
     },
 
-    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[] }) {
+    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[], activity?: ActivitySession[] }) {
         const db = await dbPromise;
-        const tx = db.transaction(['notes', 'todos', 'hourly_logs'], 'readwrite');
+        const tx = db.transaction(['notes', 'todos', 'hourly_logs', 'activity_sessions'], 'readwrite');
 
         // 1. Merge Notes
         const noteStore = tx.objectStore('notes');
         const localNotes = await noteStore.getAll();
         const noteMap = new Map<string, Note>();
-
         localNotes.forEach(n => noteMap.set(n.id, n));
 
         for (const cloudNote of cloudData.notes) {
             const localNote = noteMap.get(cloudNote.id);
             if (!localNote) {
-                // New from cloud
                 noteMap.set(cloudNote.id, cloudNote);
             } else {
-                // Conflict: Keep newer
                 const cloudTime = cloudNote.updatedAt || cloudNote.createdAt || 0;
                 const localTime = localNote.updatedAt || localNote.createdAt || 0;
                 if (cloudTime > localTime) {
@@ -163,17 +196,14 @@ export const storage = {
                 }
             }
         }
-
-        // Save merged notes
         for (const note of noteMap.values()) {
-            await noteStore.put(note); // overwrites or adds
+            await noteStore.put(note);
         }
 
         // 2. Merge Todos
         const todoStore = tx.objectStore('todos');
         const localTodos = await todoStore.getAll();
         const todoMap = new Map<string, Todo>();
-
         localTodos.forEach(t => todoMap.set(t.id, t));
 
         for (const cloudTodo of cloudData.todos) {
@@ -181,7 +211,6 @@ export const storage = {
             if (!localTodo) {
                 todoMap.set(cloudTodo.id, cloudTodo);
             } else {
-                // Conflict: Keep newer if updatedAt exists, otherwise keep cloud
                 const cloudUpdated = cloudTodo.updatedAt || cloudTodo.createdAt || 0;
                 const localUpdated = localTodo.updatedAt || localTodo.createdAt || 0;
                 if (cloudUpdated > localUpdated) {
@@ -189,7 +218,6 @@ export const storage = {
                 }
             }
         }
-
         for (const todo of todoMap.values()) {
             await todoStore.put(todo);
         }
@@ -199,7 +227,6 @@ export const storage = {
             const hourlyStore = tx.objectStore('hourly_logs');
             const localLogs = await hourlyStore.getAll();
             const logMap = new Map<string, any>();
-
             localLogs.forEach(l => logMap.set(l.date, l));
 
             for (const cloudLog of cloudData.hourlyLogs) {
@@ -207,19 +234,43 @@ export const storage = {
                 if (!localLog) {
                     logMap.set(cloudLog.date, cloudLog);
                 } else {
-                    // Merge internal logs object: { "9": "foo", "10": "bar" }
-                    const mergedInternal = { ...localLog.logs, ...cloudLog.logs };
-                    logMap.set(cloudLog.date, { ...localLog, logs: mergedInternal });
+                    const cloudUpdated = (cloudLog as any).updatedAt || 0;
+                    const localUpdated = (localLog as any).updatedAt || 0;
+                    if (cloudUpdated > localUpdated) {
+                        logMap.set(cloudLog.date, cloudLog);
+                    }
                 }
             }
-
             for (const log of logMap.values()) {
                 await hourlyStore.put(log);
             }
         }
 
+        // 4. Merge Activity Sessions
+        if (cloudData.activity) {
+            const activityStore = tx.objectStore('activity_sessions');
+            const localSessions = await activityStore.getAll();
+            const sessionMap = new Map<string, ActivitySession>();
+            localSessions.forEach(s => sessionMap.set(s.id, s));
+
+            for (const cloudSession of cloudData.activity) {
+                const localSession = sessionMap.get(cloudSession.id);
+                if (!localSession) {
+                    sessionMap.set(cloudSession.id, cloudSession);
+                } else {
+                    const cloudTime = cloudSession.updatedAt || 0;
+                    const localTime = localSession.updatedAt || 0;
+                    if (cloudTime > localTime) {
+                        sessionMap.set(cloudSession.id, cloudSession);
+                    }
+                }
+            }
+            for (const session of sessionMap.values()) {
+                await activityStore.put(session);
+            }
+        }
+
         await tx.done;
-        storage.notifyListeners();
     },
 
     listeners: [] as (() => void)[],
@@ -233,6 +284,10 @@ export const storage = {
 
     async notifyListeners() {
         this.listeners.forEach(cb => cb());
+        this.triggerWidgetSync();
+    },
+
+    async triggerWidgetSync() {
         // Sync to Widget (Android Native Bridge)
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
@@ -240,16 +295,30 @@ export const storage = {
             const hourlyLog = await this.getHourlyLog(today);
 
             // Save to Capacitor Preferences (which maps to Android SharedPreferences)
-            await Preferences.set({
-                key: 'widget_todos',
-                value: JSON.stringify(todos)
-            });
-            await Preferences.set({
-                key: 'widget_hourly',
-                value: JSON.stringify(hourlyLog?.logs || {})
-            });
+            // We set both prefixed and non-prefixed just to be absolutely certain the widget can find it
+            const data = [
+                { key: 'widget_todos', value: JSON.stringify(todos) },
+                { key: 'widget_hourly', value: JSON.stringify(hourlyLog?.logs || {}) }
+            ];
+
+            for (const item of data) {
+                await Preferences.set({
+                    key: item.key,
+                    value: item.value
+                });
+            }
+
+            console.log("storage: Widget data updated for", today);
         } catch (e) {
             console.warn('Widget sync failed:', e);
         }
     }
 };
+
+// Global hourly trigger to ensure widget/UI updates for new day/hour
+if (typeof window !== 'undefined') {
+    (window as any).triggerWidgetSync = () => storage.triggerWidgetSync();
+    setInterval(() => {
+        storage.notifyListeners();
+    }, 60000 * 30); // Every 30 minutes, force a state refresh and widget sync
+}

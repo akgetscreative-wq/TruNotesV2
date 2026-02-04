@@ -11,6 +11,7 @@ export interface Note {
     mood?: string; // Emoji character
     order?: number; // Manual sort order
     type?: 'text' | 'drawing';
+    deleted?: boolean;
 }
 
 export interface Todo {
@@ -20,6 +21,7 @@ export interface Todo {
     createdAt: number;
     updatedAt: number;
     targetDate: string; // YYYY-MM-DD
+    deleted?: boolean;
 }
 
 export interface Folder {
@@ -30,4 +32,17 @@ export interface Folder {
 export interface HourlyLog {
     date: string; // YYYY-MM-DD
     logs: { [hour: number]: string };
+}
+
+export interface ActivitySession {
+    id: string;
+    appName: string;
+    pkgName: string; // package name on Android, exe name on Windows
+    startTime: number;
+    endTime: number;
+    duration: number; // in milliseconds
+    deviceType: 'android' | 'pc';
+    deviceName: string;
+    date: string; // YYYY-MM-DD
+    updatedAt: number;
 }

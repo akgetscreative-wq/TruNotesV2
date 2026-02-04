@@ -1,11 +1,11 @@
-import { Home, Book, Star, CheckSquare, Calendar, LogOut, Hourglass, Coffee, Cloud, Settings } from 'lucide-react';
+import { Home, Book, Star, CheckSquare, Calendar, LogOut, Hourglass, Coffee, Cloud, Settings, BarChart2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from './UI/ThemeToggle';
 import { useTheme } from '../hooks/useTheme';
 
 interface SidebarProps {
-    currentView: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings';
-    onChangeView: (view: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings') => void;
+    currentView: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'activity';
+    onChangeView: (view: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'activity') => void;
     onLogout: () => void;
     isOpen?: boolean;
     onClose?: () => void;
@@ -23,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onL
         { id: 'favorites', label: 'Star', icon: Star },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
         { id: 'calendar', label: 'Plan', icon: Calendar },
+        { id: 'activity', label: 'Activity', icon: BarChart2 },
         { id: 'timer', label: 'Focus', icon: Hourglass },
         { id: 'sync', label: 'Sync', icon: Cloud },
         { id: 'settings', label: 'Settings', icon: Settings },

@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('electron', {
     onTriggerAutoBackup: (callback: () => void) => {
         ipcRenderer.on('trigger-auto-backup', () => callback());
     },
+    onActivityEvent: (callback: (data: any) => void) => {
+        ipcRenderer.on('activity-event', (_event: any, data: any) => callback(data));
+    },
     sendSyncComplete: () => {
         ipcRenderer.send('sync-complete');
     }

@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+const { exec } = require('child_process');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -21,14 +20,72 @@ const createWindow = () => {
         icon: path.join(__dirname, 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: false, // Secure
-            contextIsolation: true, // Secure
-            webSecurity: false // Allow loading local files (for file:// protocol) - strictly needed for local asset loading without custom protocol
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: false
         },
     });
 
-    // Remove the menu for a more app-like feel, or keep it.
     mainWindow.setMenuBarVisibility(false);
+
+    // Activity Tracker (PC)
+    let lastApp = "";
+    let startTime = Date.now();
+
+    const trackActivity = () => {
+        if (process.platform !== 'win32') return;
+
+        const psScript = `
+            $code = @'
+                using System;
+                using System.Runtime.InteropServices;
+                using System.Text;
+                public class Utils {
+                    [DllImport("user32.dll")]
+                    public static extern IntPtr GetForegroundWindow();
+                    [DllImport("user32.dll")]
+                    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+                    [DllImport("user32.dll")]
+                    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+                }
+'@
+            Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+            $hwnd = [Utils]::GetForegroundWindow()
+            $sb = New-Object System.Text.StringBuilder 256
+            [Utils]::GetWindowText($hwnd, $sb, 256) | Out-Null
+            $pid = 0
+            [Utils]::GetWindowThreadProcessId($hwnd, [ref]$pid) | Out-Null
+            $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            if ($p) { write-host "$($p.ProcessName)|$($sb.ToString())" }
+        `;
+
+        exec(`powershell -command "${psScript.replace(/"/g, '\\"')}"`, (error: any, stdout: any) => {
+            if (error || !stdout) return;
+            const out = stdout.trim();
+            if (!out.includes('|')) return;
+
+            const [procName, title] = out.split('|');
+            const currentApp = procName.toLowerCase();
+
+            if (currentApp !== lastApp) {
+                const now = Date.now();
+                if (lastApp && lastApp !== "idle") {
+                    mainWindow.webContents.send('activity-event', {
+                        appName: lastApp,
+                        pkgName: lastApp,
+                        startTime,
+                        endTime: now,
+                        deviceType: 'pc',
+                        deviceName: 'Windows PC'
+                    });
+                }
+                lastApp = currentApp;
+                startTime = now;
+            }
+        });
+    };
+
+    setInterval(trackActivity, 5000); // Check every 5 seconds
 
     // IPC for Asset Path
     ipcMain.handle('get-asset-path', (event: any, relativePath: any) => {
@@ -72,17 +129,14 @@ const createWindow = () => {
         }
     });
 
-    // and load the index.html of the app.
     if (process.env.NODE_ENV === 'development') {
         mainWindow.loadURL('http://localhost:5173');
-        // Open the DevTools.
         mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
 };
 
-// ... app.on events ...
 app.on('ready', createWindow);
 
 app.on('window-all-closed', () => {
@@ -92,8 +146,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-    // On OS X it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
     }

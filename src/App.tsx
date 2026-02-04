@@ -1,4 +1,5 @@
 import { App as CapacitorApp } from '@capacitor/app';
+import { Preferences } from '@capacitor/preferences';
 import { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { Sidebar } from './components/Sidebar';
@@ -9,6 +10,7 @@ import { CalendarView } from './features/Calendar/CalendarView';
 import { Dashboard } from './features/Dashboard';
 import { TimerView } from './features/Timer/TimerView';
 import { TomorrowView } from './features/Todo/TomorrowView';
+import { ActivityView } from './features/Activity/ActivityView';
 import type { Note } from './types';
 import { useNotes } from './hooks/useNotes';
 import { getJournalBackgroundPath } from './utils/assetLoader';
@@ -31,9 +33,11 @@ export const showToast = (msg: string, type: 'error' | 'success' = 'success') =>
 (window as any).showToast = showToast;
 
 import { useWidgetSync } from './hooks/useWidgetSync';
+import { useActivityTracker } from './hooks/useActivityTracker';
 
 function AuthenticatedApp() {
   useWidgetSync();
+  useActivityTracker();
   const { notes, loading, addNote, updateNote, deleteNote, saveReorder } = useNotes();
   const { isAuthenticated, logout } = useAuth();
   const { journalBg: customJournalBg, bgDarknessLight, bgDarknessDark, tasksBg, tomorrowBg, bgBlurLight, bgBlurDark } = useSettings();
@@ -42,7 +46,7 @@ function AuthenticatedApp() {
   const currentBgDarkness = theme === 'dark' ? bgDarknessDark : bgDarknessLight;
   const currentBgBlur = theme === 'dark' ? bgBlurLight : bgBlurDark;
 
-  const [view, setView] = useState<'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'activity'>('dashboard');
   const [activeNote, setActiveNote] = useState<Note | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,6 +73,16 @@ function AuthenticatedApp() {
   useEffect(() => {
     let lastBackPress = 0;
     const setupListener = async () => {
+      // Check for view hint from widgets
+      const checkIntent = async () => {
+        const { value: targetView } = await Preferences.get({ key: 'last_widget_view' });
+        if (targetView) {
+          setView(targetView as any);
+          await Preferences.remove({ key: 'last_widget_view' });
+        }
+      };
+      checkIntent();
+
       const handle = await CapacitorApp.addListener('backButton', () => {
         const { activeNote, isCreating, view, isDeleteModalOpen } = stateRef.current;
         if (isDeleteModalOpen) { setIsDeleteModalOpen(false); return; }
@@ -234,6 +248,7 @@ function AuthenticatedApp() {
                   case 'timer': return <TimerView />;
                   case 'sync': return <SyncSettings />;
                   case 'settings': return <SettingsView />;
+                  case 'activity': return <ActivityView />;
                   case 'journal':
                   case 'favorites':
                     return (

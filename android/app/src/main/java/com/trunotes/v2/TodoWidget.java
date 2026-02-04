@@ -40,6 +40,15 @@ public class TodoWidget extends AppWidgetProvider {
         PendingIntent addPI = PendingIntent.getActivity(context, 1, addIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
         views.setOnClickPendingIntent(R.id.btn_add_todo, addPI);
 
+        // Title click -> Open App
+        Intent openAppIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (openAppIntent != null) {
+            openAppIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            openAppIntent.putExtra("view", "tasks"); // Hint for the app
+            PendingIntent openAppPI = PendingIntent.getActivity(context, 2, openAppIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            views.setOnClickPendingIntent(R.id.widget_title, openAppPI);
+        }
+
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 

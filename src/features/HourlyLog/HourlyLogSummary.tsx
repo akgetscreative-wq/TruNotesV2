@@ -1,10 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, X, Save } from 'lucide-react';
 import { useHourlyLog } from '../../hooks/useHourlyLog';
 
 export const HourlyLogSummary: React.FC = () => {
-    const now = new Date();
+    const [now, setNow] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const nextNow = new Date();
+            // Only update state if hour or day changed to avoid unnecessary re-renders
+            if (nextNow.getHours() !== now.getHours() || nextNow.getDate() !== now.getDate()) {
+                setNow(nextNow);
+            }
+        }, 30000); // Check every 30 seconds
+        return () => clearInterval(timer);
+    }, [now]);
+
     const currentHour = now.getHours();
     const { logs, saveLog } = useHourlyLog(now);
     const [editingHour, setEditingHour] = useState<number | null>(null);
