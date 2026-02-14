@@ -33,3 +33,18 @@ export interface HourlyLog {
     date: string; // YYYY-MM-DD
     logs: { [hour: number]: string };
 }
+export interface Message {
+    id: string;
+    text: string;
+    sender: 'user' | 'bot';
+    timestamp: number;
+    msPerToken?: number;
+}
+
+export interface ChatSession {
+    id: string;
+    title: string;
+    messages: Message[];
+    lastModified: number;
+    modelName?: string;
+}

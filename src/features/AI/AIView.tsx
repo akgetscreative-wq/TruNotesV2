@@ -7,6 +7,8 @@ import AIBridge from './AIBridge';
 import { useNotes } from '../../hooks/useNotes';
 import { useTodos } from '../../hooks/useTodos';
 import { Preferences } from '@capacitor/preferences';
+import { storage } from '../../lib/storage';
+import type { Message, ChatSession } from '../../types';
 
 interface Model {
     id: string;
@@ -17,23 +19,6 @@ interface Model {
     progress?: number;
     url?: string;
     actualPath?: string;
-}
-
-interface Message {
-    id: string;
-    text: string;
-    sender: 'user' | 'bot';
-    timestamp: number;
-    msPerToken?: number;
-}
-
-interface ChatSession {
-    id: string;
-    title: string;
-    messages: Message[];
-    lastModified: number;
-    modelName?: string;
-    staticContext?: string;
 }
 
 // In-memory cache to persist chat during navigation but clear on app restart (Cold Start)
@@ -350,30 +335,35 @@ export const AIView: React.FC = () => {
                     setAiConfig(prev => ({ ...prev, ...parsedConfig }));
                 }
 
-                // Restore from In-Memory Cache (Navigation Persistence)
-                if (inMemorySessions) {
+                // Restore from In-Memory Cache (High-Speed Navigation) or Database (Cold Start)
+                if (inMemorySessions && inMemorySessions.length > 0) {
                     setSessions(inMemorySessions);
-                    const lastId = inMemoryLastSessionId;
-                    if (lastId && inMemorySessions.some(s => s.id === lastId)) {
-                        setActiveSessionId(lastId);
-                        setChatMessages(inMemorySessions.find(s => s.id === lastId)?.messages || []);
-                    } else if (inMemorySessions.length > 0) {
-                        setActiveSessionId(inMemorySessions[0].id);
-                        setChatMessages(inMemorySessions[0].messages);
-                    }
+                    const lastId = inMemoryLastSessionId || inMemorySessions[0].id;
+                    setActiveSessionId(lastId);
+                    setChatMessages(inMemorySessions.find((s: any) => s.id === lastId)?.messages || []);
                 } else {
-                    // Fresh start if no cache exists
-                    const newId = Date.now().toString();
-                    const newSession: ChatSession = {
-                        id: newId,
-                        title: 'New Conversation',
-                        messages: [],
-                        lastModified: Date.now()
-                    };
-                    setSessions([newSession]);
-                    setActiveSessionId(newId);
-                    inMemorySessions = [newSession];
-                    inMemoryLastSessionId = newId;
+                    const dbSessions = await storage.getAISessions();
+                    if (dbSessions && dbSessions.length > 0) {
+                        const sorted = dbSessions.sort((a: any, b: any) => (b.lastModified || 0) - (a.lastModified || 0));
+                        setSessions(sorted);
+                        inMemorySessions = sorted;
+                        const lastId = inMemoryLastSessionId || sorted[0].id;
+                        setActiveSessionId(lastId);
+                        setChatMessages(sorted.find((s: any) => s.id === lastId)?.messages || []);
+                    } else {
+                        // Fresh start
+                        const newId = Date.now().toString();
+                        const newSession: ChatSession = {
+                            id: newId,
+                            title: 'New Conversation',
+                            messages: [],
+                            lastModified: Date.now()
+                        };
+                        setSessions([newSession]);
+                        setActiveSessionId(newId);
+                        await storage.saveAISession(newSession);
+                        inMemorySessions = [newSession];
+                    }
                 }
 
                 isInitialLoad.current = false;
@@ -441,16 +431,18 @@ export const AIView: React.FC = () => {
         };
     }, []);
 
-    // Save Sessions to Memory Cache (Navigation Persistence)
-    const persistSessions = async () => {
-        setSessions(currentSessions => {
-            inMemorySessions = currentSessions;
-            return currentSessions;
-        });
-        setModels(currentModels => {
-            inMemoryModels = currentModels;
-            return currentModels;
-        });
+    // Save Sessions to Persistent Storage
+    const persistSessions = async (specificSessions?: ChatSession[]) => {
+        const currentToPersist = specificSessions || sessions;
+        inMemorySessions = currentToPersist;
+
+        // Save ACTIVE session to DB
+        if (activeSessionId) {
+            const active = currentToPersist.find(s => s.id === activeSessionId);
+            if (active) {
+                await storage.saveAISession(active);
+            }
+        }
     };
 
     // Save Engine Config whenever it changes
@@ -477,9 +469,10 @@ export const AIView: React.FC = () => {
         inMemoryModels = models;
     }, [models]);
 
-    const handleNewChat = () => {
+    const handleNewChat = async () => {
+        const newId = Date.now().toString();
         const newSession: ChatSession = {
-            id: Date.now().toString(),
+            id: newId,
             title: 'New Conversation',
             messages: [],
             lastModified: Date.now(),
@@ -487,10 +480,11 @@ export const AIView: React.FC = () => {
         };
         const updated = [newSession, ...sessions];
         setSessions(updated);
-        setActiveSessionId(newSession.id);
+        setActiveSessionId(newId);
         setChatMessages([]);
         setActiveTab('chat');
-        persistSessions();
+        await storage.saveAISession(newSession);
+        inMemorySessions = updated;
     };
 
     const handleSwitchSession = (sessionId: string) => {
@@ -514,15 +508,20 @@ export const AIView: React.FC = () => {
     };
 
 
-    const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
+    const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         const updated = sessions.filter(s => s.id !== sessionId);
         setSessions(updated);
+        await storage.deleteAISession(sessionId);
         if (activeSessionId === sessionId) {
-            setActiveSessionId(null);
-            setChatMessages([]);
+            if (updated.length > 0) {
+                setActiveSessionId(updated[0].id);
+                setChatMessages(updated[0].messages);
+            } else {
+                handleNewChat();
+            }
         }
-        persistSessions();
+        inMemorySessions = updated;
     };
 
     const formatChatPrompt = (modelId: string, history: Message[], userMsg: string, context?: string, onlySystem: boolean = false) => {
@@ -773,19 +772,25 @@ export const AIView: React.FC = () => {
                             if (last.sender === 'bot') last.text = cleanedText;
                         }
                         // Trigger session sync with DEFINITIVE messages
-                        setSessions(currS => currS.map(s =>
-                            s.id === turnSessionId ? { ...s, messages: updated, lastModified: Date.now() } : s
-                        ));
-                        persistSessions();
+                        setSessions(currS => {
+                            const updatedSessions = currS.map(s =>
+                                s.id === turnSessionId ? { ...s, messages: updated, lastModified: Date.now() } : s
+                            );
+                            persistSessions(updatedSessions);
+                            return updatedSessions;
+                        });
                         return updated;
                     });
                 } else {
                     // Even if no cleanup, sync sessions to save the bot's raw text
                     setChatMessages(prev => {
-                        setSessions(currS => currS.map(s =>
-                            s.id === turnSessionId ? { ...s, messages: prev, lastModified: Date.now() } : s
-                        ));
-                        persistSessions();
+                        setSessions(currS => {
+                            const updatedSessions = currS.map(s =>
+                                s.id === turnSessionId ? { ...s, messages: prev, lastModified: Date.now() } : s
+                            );
+                            persistSessions(updatedSessions);
+                            return updatedSessions;
+                        });
                         return prev;
                     });
                 }

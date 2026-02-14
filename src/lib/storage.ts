@@ -22,37 +22,31 @@ interface TruNotesDB extends DBSchema {
             updatedAt?: number;
         };
     };
+    ai_sessions: {
+        key: string;
+        value: any; // ChatSession (avoiding circular dependency)
+    };
 }
 
-const dbPromise = openDB<TruNotesDB>('trunotes-db', 6, {
+const dbPromise = openDB<TruNotesDB>('trunotes-db', 7, {
     upgrade(db, oldVersion, _newVersion, transaction) {
-        let noteStore;
         if (oldVersion < 1) {
-            noteStore = db.createObjectStore('notes', { keyPath: 'id' });
+            const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
             noteStore.createIndex('by-date', 'updatedAt');
-        } else {
-            noteStore = transaction.objectStore('notes');
-        }
-
-        if (oldVersion < 2 && !noteStore.indexNames.contains('by-tags')) {
             noteStore.createIndex('by-tags', 'tags', { multiEntry: true });
         }
-
-        if (oldVersion < 3) {
+        if (oldVersion < 3 && !db.objectStoreNames.contains('todos')) {
             const todoStore = db.createObjectStore('todos', { keyPath: 'id' });
             todoStore.createIndex('by-date', 'createdAt');
+            todoStore.createIndex('by-target-date', 'targetDate');
         }
-
-        if (oldVersion < 4) {
-            const todoStore = transaction.objectStore('todos');
-            if (!todoStore.indexNames.contains('by-target-date')) {
-                todoStore.createIndex('by-target-date', 'targetDate');
-            }
-        }
-
         if (oldVersion < 5 && !db.objectStoreNames.contains('hourly_logs')) {
             db.createObjectStore('hourly_logs', { keyPath: 'date' });
         }
+        if (oldVersion < 7 && !db.objectStoreNames.contains('ai_sessions')) {
+            db.createObjectStore('ai_sessions', { keyPath: 'id' });
+        }
+        console.log("DB Upgrade complete to version", _newVersion, "using transaction:", !!transaction);
     },
 });
 
@@ -155,31 +149,32 @@ export const storage = {
         const notes = await db.getAll('notes');
         const todos = await db.getAll('todos');
         const hourlyLogs = await db.getAll('hourly_logs');
+        const ai_sessions = await db.getAll('ai_sessions');
 
         // Fetch AI Data from Preferences
         const { value: memories } = await Preferences.get({ key: 'ai_persistent_memories' });
         const { value: config } = await Preferences.get({ key: 'ai_engine_config' });
 
-        // NOTE: activity_sessions is intentionally excluded from export for privacy
         return {
             notes,
             todos,
             hourlyLogs,
+            ai_sessions,
             ai_memories: memories ? JSON.parse(memories) : [],
             ai_config: config ? JSON.parse(config) : null,
             timestamp: Date.now()
         };
     },
 
-    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[], ai_memories?: string[], ai_config?: any }) {
+    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[], ai_sessions?: any[], ai_memories?: string[], ai_config?: any }) {
         console.log("storage: Performing smart merge...");
         await this.mergeDatabase(data);
         this.notifyListeners();
     },
 
-    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[], ai_memories?: string[], ai_config?: any }) {
+    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[], ai_sessions?: any[], ai_memories?: string[], ai_config?: any }) {
         const db = await dbPromise;
-        const tx = db.transaction(['notes', 'todos', 'hourly_logs'], 'readwrite');
+        const tx = db.transaction(['notes', 'todos', 'hourly_logs', 'ai_sessions'], 'readwrite');
 
         // 1. Merge Notes
         const noteStore = tx.objectStore('notes');
@@ -251,6 +246,23 @@ export const storage = {
 
 
         // 4. Merge AI Data
+        if (cloudData.ai_sessions) {
+            const aiStore = tx.objectStore('ai_sessions');
+            const localSessions = await aiStore.getAll();
+            const sessionMap = new Map<string, any>();
+            localSessions.forEach(s => sessionMap.set(s.id, s));
+
+            for (const cloudS of cloudData.ai_sessions) {
+                const localS = sessionMap.get(cloudS.id);
+                if (!localS || (cloudS.lastModified || 0) > (localS.lastModified || 0)) {
+                    sessionMap.set(cloudS.id, cloudS);
+                }
+            }
+            for (const s of sessionMap.values()) {
+                await aiStore.put(s);
+            }
+        }
+
         if (cloudData.ai_memories && cloudData.ai_memories.length > 0) {
             const { value: localMemStr } = await Preferences.get({ key: 'ai_persistent_memories' });
             const localMem: string[] = localMemStr ? JSON.parse(localMemStr) : [];
@@ -318,6 +330,24 @@ export const storage = {
         } catch (e) {
             console.warn('Widget sync failed:', e);
         }
+    },
+
+    // AI SESSION STORAGE
+    async saveAISession(session: any) {
+        const db = await dbPromise;
+        await db.put('ai_sessions', session);
+        this.notifyListeners();
+    },
+
+    async getAISessions() {
+        const db = await dbPromise;
+        return db.getAll('ai_sessions');
+    },
+
+    async deleteAISession(id: string) {
+        const db = await dbPromise;
+        await db.delete('ai_sessions', id);
+        this.notifyListeners();
     }
 };
 
