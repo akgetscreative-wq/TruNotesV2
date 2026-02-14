@@ -80,6 +80,7 @@ export const AIView: React.FC = () => {
         directMode: false // NEW: Direct AI Mode for max speed
     });
     const isInitialLoad = useRef(true);
+    const activeSessionRef = useRef<string | null>(null);
     const [persistentMemories, setPersistentMemories] = useState<string[]>([]);
 
     const { notes, addNote } = useNotes();
@@ -426,8 +427,96 @@ export const AIView: React.FC = () => {
             }
         });
 
+        // Background loading listener
+        const modelListener = AIBridge.addListener('modelStatus', (data) => {
+            if (data.status === 'loaded') {
+                setModels(prev => prev.map(m => m.actualPath === data.path ? { ...m, status: 'loaded' } : m));
+                setLoadedModel(data.path?.split('/').pop()?.replace('.gguf', '') || null);
+            } else if (data.status === 'error') {
+                setError("Model load failed: " + data.message);
+            }
+        });
+
+        // Generation finish listener (Handles cleanup and persistence)
+        const doneListener = AIBridge.addListener('done', async (data) => {
+            // Force one final flash of the buffer
+            const finalBotText = data.fullResponse;
+            tokenBufferRef.current = "";
+
+            setIsGenerating(false);
+            const currentSessionId = activeSessionRef.current;
+            if (!currentSessionId) return;
+
+            let cleanedText = finalBotText;
+
+            // [SAVEMEM]
+            const memMatch = cleanedText.match(/\[SAVEMEM:\s*(.*?)\]/);
+            if (memMatch && memMatch[1]) {
+                const fact = memMatch[1].trim();
+                setPersistentMemories(m => {
+                    if (m.includes(fact)) return m;
+                    const updated = [...m, fact];
+                    Preferences.set({ key: 'ai_persistent_memories', value: JSON.stringify(updated) });
+                    return updated;
+                });
+                cleanedText = cleanedText.replace(/\[SAVEMEM:.*?\]/g, '').trim();
+            }
+
+            // [CREATE_TASK]
+            const taskRegex = /\[CREATE_TASK:\s*["'](.*?)["']\]/gi;
+            let tm;
+            while ((tm = taskRegex.exec(finalBotText)) !== null) {
+                if (tm[1]) {
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    await addTodo(tm[1], dateStr);
+                    cleanedText = cleanedText.replace(tm[0], '').trim();
+                }
+            }
+
+            // [COMPLETE_TASK]
+            const completeRegex = /\[COMPLETE_TASK:\s*["'](.*?)["']\]/gi;
+            while ((tm = completeRegex.exec(finalBotText)) !== null) {
+                if (tm[1]) {
+                    const target = tm[1].toLowerCase();
+                    const todo = todos.find(t => t.text.toLowerCase().includes(target) && !t.completed);
+                    if (todo) await toggleTodo(todo);
+                    cleanedText = cleanedText.replace(tm[0], '').trim();
+                }
+            }
+
+            // [CREATE_NOTE]
+            const noteRegex = /\[CREATE_NOTE:\s*title=["'](.*?)["'],\s*content=["'](.*?)["']\]/gis;
+            while ((tm = noteRegex.exec(finalBotText)) !== null) {
+                if (tm[1] && tm[2]) {
+                    await addNote(tm[1], tm[2]);
+                    cleanedText = cleanedText.replace(tm[0], '').trim();
+                }
+            }
+
+            // Final Update & Persistence
+            setChatMessages(prev => {
+                const updated = [...prev];
+                if (updated.length > 0) {
+                    const last = updated[updated.length - 1];
+                    if (last && last.sender === 'bot') last.text = cleanedText;
+                }
+
+                setSessions(currS => {
+                    const updatedSessions = currS.map(s =>
+                        s.id === currentSessionId ? { ...s, messages: updated, lastModified: Date.now() } : s
+                    );
+                    persistSessions(updatedSessions);
+                    return updatedSessions;
+                });
+                return updated;
+            });
+            console.log("AI Generation Finished & Persisted.");
+        });
+
         return () => {
             listener.then(h => h.remove());
+            modelListener.then(h => h.remove());
+            doneListener.then(h => h.remove());
         };
     }, []);
 
@@ -458,6 +547,7 @@ export const AIView: React.FC = () => {
     useEffect(() => {
         if (activeSessionId) {
             inMemoryLastSessionId = activeSessionId;
+            activeSessionRef.current = activeSessionId;
         }
     }, [activeSessionId]);
 
@@ -673,133 +763,37 @@ export const AIView: React.FC = () => {
             const modelObj = models.find(m => m.name === loadedModel);
             const modelId = modelObj ? modelObj.id : 'unknown';
 
-            const contextGrounding = aiConfig.disableContext ? "" : getRelevantContext(userMsg.text);
-            const prompt = formatChatPrompt(modelId, chatMessages, userMsg.text, contextGrounding);
-
-            await AIBridge.generate({
-                prompt: prompt,
+            // PRESET: Summarize detection
+            let genParams = {
                 n_predict: aiConfig.n_predict,
                 temperature: aiConfig.temperature,
                 top_k: aiConfig.top_k,
                 top_p: aiConfig.top_p,
                 penalty: aiConfig.penalty
+            };
+
+            const isSummarize = userMsg.text.toLowerCase().startsWith('/summarize');
+            if (isSummarize) {
+                genParams = {
+                    n_predict: 160,
+                    temperature: 0.2,
+                    top_k: 40,
+                    top_p: 0.9,
+                    penalty: 1.05
+                };
+            }
+
+            const contextGrounding = aiConfig.disableContext ? "" : getRelevantContext(userMsg.text);
+            const prompt = formatChatPrompt(modelId, chatMessages, userMsg.text, contextGrounding);
+
+            // Trigger generation and immediately return
+            await AIBridge.generate({
+                prompt: prompt,
+                ...genParams
             });
-
-            // 1. Flush any remaining tokens in the buffer
-            let finalBotText = "";
-            if (tokenBufferRef.current) {
-                const remaining = tokenBufferRef.current;
-                tokenBufferRef.current = "";
-                setChatMessages(prev => {
-                    const updated = [...prev];
-                    const last = updated[updated.length - 1];
-                    if (last && last.sender === 'bot') {
-                        last.text += remaining;
-                        finalBotText = last.text;
-                    }
-                    return updated;
-                });
-            } else {
-                // If no buffer, get current text from state
-                setChatMessages(prev => {
-                    const last = prev[prev.length - 1];
-                    if (last && last.sender === 'bot') finalBotText = last.text;
-                    return prev;
-                });
-            }
-
-            // Small delay to ensure state update for finalBotText is captured if needed, 
-            // though the functional setter above is synchronous in the closure.
-
-            // 2. Process App Control Commands (Tasks/Notes/Memories)
-            if (finalBotText) {
-                let cleanedText = finalBotText;
-
-                // [SAVEMEM]
-                const memMatch = cleanedText.match(/\[SAVEMEM:\s*(.*?)\]/);
-                if (memMatch && memMatch[1]) {
-                    const fact = memMatch[1].trim();
-                    console.log("AI Command: Saving memory ->", fact);
-                    setPersistentMemories(m => {
-                        if (m.includes(fact)) return m;
-                        const updated = [...m, fact];
-                        Preferences.set({ key: 'ai_persistent_memories', value: JSON.stringify(updated) });
-                        return updated;
-                    });
-                    cleanedText = cleanedText.replace(/\[SAVEMEM:.*?\]/g, '').trim();
-                }
-
-                // [CREATE_TASK]
-                const taskRegex = /\[CREATE_TASK:\s*["'](.*?)["']\]/gi;
-                let tm;
-                while ((tm = taskRegex.exec(finalBotText)) !== null) {
-                    if (tm[1]) {
-                        console.log("AI Command (Storage): Creating task ->", tm[1]);
-                        const dateStr = new Date().toISOString().split('T')[0];
-                        await addTodo(tm[1], dateStr);
-                        cleanedText = cleanedText.replace(tm[0], '').trim();
-                    }
-                }
-
-                // [COMPLETE_TASK]
-                const completeRegex = /\[COMPLETE_TASK:\s*["'](.*?)["']\]/gi;
-                while ((tm = completeRegex.exec(finalBotText)) !== null) {
-                    if (tm[1]) {
-                        const target = tm[1].toLowerCase();
-                        console.log("AI Command (Storage): Completing task ->", target);
-                        const todo = todos.find(t => t.text.toLowerCase().includes(target) && !t.completed);
-                        if (todo) await toggleTodo(todo);
-                        cleanedText = cleanedText.replace(tm[0], '').trim();
-                    }
-                }
-
-                // [CREATE_NOTE]
-                const noteRegex = /\[CREATE_NOTE:\s*title=["'](.*?)["'],\s*content=["'](.*?)["']\]/gis;
-                while ((tm = noteRegex.exec(finalBotText)) !== null) {
-                    if (tm[1] && tm[2]) {
-                        console.log("AI Command (Storage): Creating note ->", tm[1]);
-                        await addNote(tm[1], tm[2]);
-                        cleanedText = cleanedText.replace(tm[0], '').trim();
-                    }
-                }
-
-                // Final cleanup: Update chat message to remove the technical tags
-                if (cleanedText !== finalBotText) {
-                    setChatMessages(prev => {
-                        const updated = [...prev];
-                        if (updated.length > 0) {
-                            const last = updated[updated.length - 1];
-                            if (last.sender === 'bot') last.text = cleanedText;
-                        }
-                        // Trigger session sync with DEFINITIVE messages
-                        setSessions(currS => {
-                            const updatedSessions = currS.map(s =>
-                                s.id === turnSessionId ? { ...s, messages: updated, lastModified: Date.now() } : s
-                            );
-                            persistSessions(updatedSessions);
-                            return updatedSessions;
-                        });
-                        return updated;
-                    });
-                } else {
-                    // Even if no cleanup, sync sessions to save the bot's raw text
-                    setChatMessages(prev => {
-                        setSessions(currS => {
-                            const updatedSessions = currS.map(s =>
-                                s.id === turnSessionId ? { ...s, messages: prev, lastModified: Date.now() } : s
-                            );
-                            persistSessions(updatedSessions);
-                            return updatedSessions;
-                        });
-                        return prev;
-                    });
-                }
-            }
         } catch (err) {
             setError("Generation failed: " + err);
-        } finally {
             setIsGenerating(false);
-            if (inputRef.current) inputRef.current.focus();
         }
     };
 

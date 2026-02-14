@@ -38,6 +38,9 @@ public class AIBridge extends Plugin {
         }
     }
 
+    private boolean isModelLoaded = false;
+    private String loadedPath = null;
+
     @PluginMethod
     public void loadModel(PluginCall call) {
         String path = call.getString("path");
@@ -46,36 +49,57 @@ public class AIBridge extends Plugin {
             return;
         }
 
+        // REDUNDANT LOAD PREVENTION
+        if (isModelLoaded && path.equals(loadedPath)) {
+            Log.d(TAG, "Model already loaded, skipping: " + path);
+            JSObject ret = new JSObject();
+            ret.put("status", "loaded");
+            ret.put("path", path);
+            ret.put("cached", true);
+            call.resolve(ret);
+            return;
+        }
+
         Log.d(TAG, "loadModel called with path: " + path);
         
-        // Memory Mapping (The Crash Fix)
         boolean useMmap = call.getBoolean("use_mmap", true);
-        int threads = call.getInt("threads", 6); // Optimal for most modern mobile CPUs
+        int threads = call.getInt("threads", 6);
 
-        try {
-            File modelFile = new File(path);
-            if (!modelFile.exists()) {
-                Log.e(TAG, "Model file NOT found at: " + path);
-                call.reject("Model file not found at: " + path);
-                return;
-            }
-            Log.d(TAG, "Model file confirmed exists at: " + path + " (Size: " + modelFile.length() + ")");
+        // INSTANT RESOLVE: Tell UI we are starting
+        JSObject initialRet = new JSObject();
+        initialRet.put("status", "loading");
+        initialRet.put("path", path);
+        call.resolve(initialRet);
 
-            // Call native implementation
-            boolean success = nativeLoadModel(path, useMmap, threads);
-            
-            if (success) {
-                saveLastModelPath(path);
-                JSObject ret = new JSObject();
-                ret.put("status", "loaded");
-                ret.put("path", path);
-                call.resolve(ret);
-            } else {
-                call.reject("Failed to load model - native error");
+        // THREADED LOADING: Don't block Capacitor
+        new Thread(() -> {
+            try {
+                File modelFile = new File(path);
+                if (!modelFile.exists()) {
+                    Log.e(TAG, "Model file NOT found at: " + path);
+                    return;
+                }
+
+                boolean success = nativeLoadModel(path, useMmap, threads);
+                if (success) {
+                    isModelLoaded = true;
+                    loadedPath = path;
+                    saveLastModelPath(path);
+                    
+                    JSObject response = new JSObject();
+                    response.put("status", "loaded");
+                    response.put("path", path);
+                    notifyListeners("modelStatus", response);
+                } else {
+                    JSObject error = new JSObject();
+                    error.put("status", "error");
+                    error.put("message", "Native load failed");
+                    notifyListeners("modelStatus", error);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Background load failed", e);
             }
-        } catch (Exception e) {
-            call.reject("Failed to load model: " + e.getMessage());
-        }
+        }).start();
     }
 
     @PluginMethod
@@ -234,6 +258,8 @@ public class AIBridge extends Plugin {
     public void unloadModel(PluginCall call) {
         try {
             nativeUnloadModel();
+            isModelLoaded = false;
+            loadedPath = null;
             SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             prefs.edit().remove(KEY_LAST_MODEL).apply();
             call.resolve();
@@ -256,18 +282,23 @@ public class AIBridge extends Plugin {
         float topP = call.getFloat("top_p", 0.9f);
         float penalty = call.getFloat("penalty", 1.1f);
 
-        // Call native code for actual AI generation
+        // INSTANT RESOLVE: UI can show bot bubble/loading immediately
+        JSObject initialRet = new JSObject();
+        initialRet.put("started", true);
+        call.resolve(initialRet);
+
+        // Call native code for actual AI generation in background
         new Thread(() -> {
             try {
                 // nativeGenerate now calls back onNativeToken for real-time streaming
                 String fullResponse = nativeGenerate(prompt, nPredict, temperature, topK, topP, penalty);
                 
-                // We resolve once correct, maybe pass full text
-                JSObject ret = new JSObject();
-                ret.put("response", fullResponse);
-                call.resolve(ret);
+                // Final completion event
+                JSObject done = new JSObject();
+                done.put("fullResponse", fullResponse);
+                notifyListeners("done", done);
             } catch (Exception e) {
-                call.reject("Generation failed: " + e.getMessage());
+                Log.e(TAG, "Generation failed", e);
             }
         }).start();
     }

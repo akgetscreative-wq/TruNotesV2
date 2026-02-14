@@ -323,7 +323,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
             // Speed Cap: Prevent looping/minute-long runs. Polish shouldn't be massive.
             const maxPredict = Math.min(plainText.length * 2 + 100, 1000);
 
-            let result = await AIBridge.generate({
+            let result = await AIBridge.generateSync({
                 prompt,
                 temperature: 0.1,
                 n_predict: maxPredict,
@@ -334,7 +334,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
             if (result.response.includes("Error: Model not loaded")) {
                 const loaded = await ensureModelLoaded();
                 if (loaded) {
-                    result = await AIBridge.generate({
+                    result = await AIBridge.generateSync({
                         prompt,
                         temperature: 0.1,
                         n_predict: maxPredict,
