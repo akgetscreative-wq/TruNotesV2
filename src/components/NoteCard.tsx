@@ -23,17 +23,17 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
             style={{
                 backgroundColor: 'var(--note-bg)',
                 backgroundImage: 'linear-gradient(transparent 96%, rgba(0,0,0,0.03) 97%)',
-                backgroundSize: isMobile ? '100% 1.4rem' : '100% 1.6rem',
+                backgroundSize: isMobile ? '100% 1.25rem' : '100% 1.6rem',
                 backgroundAttachment: 'local',
-                padding: isMobile ? '1rem 1.25rem' : '1.5rem',
-                paddingLeft: isMobile ? '2.1rem' : '3.5rem',
+                padding: isMobile ? '0.75rem 1rem' : '1.5rem',
+                paddingLeft: isMobile ? '1.8rem' : '3.5rem',
                 borderRadius: '8px 16px 16px 8px',
                 cursor: 'pointer',
                 transition: 'transform 0.3s ease, filter 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.25rem',
-                height: isMobile ? '180px' : '240px',
+                gap: '0.2rem',
+                height: isMobile ? '190px' : '240px',
                 overflow: 'hidden',
                 position: 'relative',
                 backdropFilter: 'blur(10px)',
@@ -41,13 +41,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
 
                 // Transparent Punch Holes (Subtler)
                 maskImage: isMobile
-                    ? 'radial-gradient(circle at 10px 50%, transparent 4px, black 4.5px)'
+                    ? 'radial-gradient(circle at 8px 50%, transparent 3px, black 3.5px)'
                     : 'radial-gradient(circle at 18px 50%, transparent 7px, black 7.5px)',
                 WebkitMaskImage: isMobile
-                    ? 'radial-gradient(circle at 10px 50%, transparent 4px, black 4.5px)'
+                    ? 'radial-gradient(circle at 8px 50%, transparent 3px, black 3.5px)'
                     : 'radial-gradient(circle at 18px 50%, transparent 7px, black 7.5px)',
-                maskSize: isMobile ? '100% 24px' : '100% 40px',
-                WebkitMaskSize: isMobile ? '100% 24px' : '100% 40px',
+                maskSize: isMobile ? '100% 20px' : '100% 40px',
+                WebkitMaskSize: isMobile ? '100% 20px' : '100% 40px',
                 maskRepeat: 'repeat-y',
                 WebkitMaskRepeat: 'repeat-y',
 
@@ -71,9 +71,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
             {note.mood && (
                 <div style={{
                     position: 'absolute',
-                    top: isMobile ? '0.75rem' : '1rem',
-                    right: isMobile ? '0.75rem' : '1rem',
-                    fontSize: isMobile ? '0.8rem' : '1rem',
+                    top: isMobile ? '0.5rem' : '1rem',
+                    right: isMobile ? '0.5rem' : '1rem',
+                    fontSize: isMobile ? '0.7rem' : '1rem',
                     opacity: 0.6,
                     filter: 'grayscale(0.3)',
                     zIndex: 10
@@ -88,9 +88,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
-                    margin: isMobile ? '-1.25rem' : '-1.5rem',
-                    marginBottom: '0.5rem',
-                    marginLeft: isMobile ? '-2.5rem' : '-3.5rem'
+                    margin: isMobile ? '-0.75rem -1rem' : '-1.5rem',
+                    marginBottom: '0.4rem',
+                    marginLeft: isMobile ? '-1.8rem' : '-3.5rem'
                 }}>
                     <div style={{ flex: 1, overflow: 'hidden', background: '#f8fafc', position: 'relative' }}>
                         <img
@@ -101,17 +101,17 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                                 height: '100%',
                                 objectFit: 'cover',
                                 opacity: 0.95,
-                                paddingLeft: isMobile ? '2.5rem' : '3.5rem'
+                                paddingLeft: isMobile ? '1.8rem' : '3.5rem'
                             }}
                         />
                         <div style={{
                             position: 'absolute',
-                            bottom: '0.4rem',
-                            right: '0.4rem',
+                            bottom: '0.3rem',
+                            right: '0.3rem',
                             background: 'rgba(255,255,255,0.8)',
                             padding: '0.1rem 0.3rem',
                             borderRadius: '3px',
-                            fontSize: '0.55rem',
+                            fontSize: '0.5rem',
                             fontWeight: 600,
                             backdropFilter: 'blur(4px)'
                         }}>
@@ -122,12 +122,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
             ) : (
                 <>
                     <h3 style={{
-                        fontSize: isMobile ? '1.1rem' : '1.4rem',
+                        fontSize: isMobile ? '0.95rem' : '1.4rem',
                         fontWeight: 700,
                         color: 'var(--text-primary)',
-                        marginBottom: '0.2rem',
+                        marginBottom: '0.1rem',
                         fontFamily: 'var(--font-serif)',
-                        paddingRight: '1.5rem',
+                        paddingRight: '1rem',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
@@ -138,11 +138,11 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                     <p style={{
                         flex: 1,
                         color: 'var(--note-text-body)',
-                        fontSize: isMobile ? '0.85rem' : '1rem',
-                        lineHeight: isMobile ? '1.5' : '1.6',
+                        fontSize: isMobile ? '0.75rem' : '1rem',
+                        lineHeight: isMobile ? '1.4' : '1.6',
                         overflow: 'hidden',
                         display: '-webkit-box',
-                        WebkitLineClamp: isMobile ? 4 : 5,
+                        WebkitLineClamp: isMobile ? 3 : 5,
                         WebkitBoxOrient: 'vertical',
                         opacity: 0.9
                     }}>

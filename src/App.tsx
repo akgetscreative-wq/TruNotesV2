@@ -10,13 +10,14 @@ import { CalendarView } from './features/Calendar/CalendarView';
 import { Dashboard } from './features/Dashboard';
 import { TimerView } from './features/Timer/TimerView';
 import { TomorrowView } from './features/Todo/TomorrowView';
-import { ActivityView } from './features/Activity/ActivityView';
 import type { Note } from './types';
 import { useNotes } from './hooks/useNotes';
 import { getJournalBackgroundPath } from './utils/assetLoader';
 import { DeleteModal } from './components/DeleteModal';
 import { Search, PenTool, AlertCircle, CheckCircle } from 'lucide-react';
 import { ScribbleEditor } from './features/Scribble/ScribbleEditor';
+import { AIView, resetAIHistory } from './features/AI/AIView';
+// TruNotesAIView removed
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider } from './context/TimerContext';
 import { LoginPage } from './features/Auth/LoginPage';
@@ -26,6 +27,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { SettingsView } from './features/Settings';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ThemeProvider, useThemeContext } from './context/ThemeContext';
+import { TimeProvider } from './context/TimeContext';
 
 // Global Toast Handler
 let toastHandler: (msg: string, type: 'error' | 'success') => void = () => { };
@@ -33,11 +35,9 @@ export const showToast = (msg: string, type: 'error' | 'success' = 'success') =>
 (window as any).showToast = showToast;
 
 import { useWidgetSync } from './hooks/useWidgetSync';
-import { useActivityTracker } from './hooks/useActivityTracker';
 
 function AuthenticatedApp() {
   useWidgetSync();
-  useActivityTracker();
   const { notes, loading, addNote, updateNote, deleteNote, saveReorder } = useNotes();
   const { isAuthenticated, logout } = useAuth();
   const { journalBg: customJournalBg, bgDarknessLight, bgDarknessDark, tasksBg, tomorrowBg, bgBlurLight, bgBlurDark } = useSettings();
@@ -46,7 +46,7 @@ function AuthenticatedApp() {
   const currentBgDarkness = theme === 'dark' ? bgDarknessDark : bgDarknessLight;
   const currentBgBlur = theme === 'dark' ? bgBlurLight : bgBlurDark;
 
-  const [view, setView] = useState<'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'activity'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai'>('dashboard');
   const [activeNote, setActiveNote] = useState<Note | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,6 +73,9 @@ function AuthenticatedApp() {
   useEffect(() => {
     let lastBackPress = 0;
     const setupListener = async () => {
+      // Clear AI chat history on cold start (New Session)
+      resetAIHistory();
+
       // Check for view hint from widgets
       const checkIntent = async () => {
         const { value: targetView } = await Preferences.get({ key: 'last_widget_view' });
@@ -189,7 +192,7 @@ function AuthenticatedApp() {
     >
       <Layout
         isFocusedContent={!!activeNote || isCreating}
-        disableGlobalSwipe={view === 'calendar'}
+        disableGlobalSwipe={view === 'calendar' || view === 'ai' || activeNote?.type === 'drawing'}
         sidebar={<Sidebar currentView={view} onChangeView={(v) => { if (v === view) setResetKey(p => p + 1); else setView(v); setActiveNote(undefined); setIsCreating(false); }} onLogout={logout} />}
       >
         <SyncManager />
@@ -227,7 +230,7 @@ function AuthenticatedApp() {
         </AnimatePresence>
 
         <AnimatePresence>{showExitToast && (<motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} style={{ position: 'fixed', bottom: '40px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.8)', color: 'white', padding: '0.8rem 1.5rem', borderRadius: '24px', zIndex: 10000 }}>Press back again to exit</motion.div>)}</AnimatePresence>
-        {activeBgImage && (<><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, backgroundImage: `url(${activeBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }} /><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, background: theme === 'dark' ? `rgba(15, 23, 42, ${currentBgDarkness})` : `rgba(255, 255, 255, ${currentBgDarkness})`, backdropFilter: `blur(${currentBgBlur}px)` }} /></>)}
+        {activeBgImage && (<><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 0, backgroundImage: `url(${activeBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }} /><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 0, background: theme === 'dark' ? `rgba(15, 23, 42, ${currentBgDarkness})` : `rgba(255, 255, 255, ${currentBgDarkness})`, backdropFilter: `blur(${currentBgBlur}px)` }} /></>)}
 
         <AnimatePresence mode="wait">
           {activeNote || isCreating ? (
@@ -241,14 +244,15 @@ function AuthenticatedApp() {
             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', height: '100%' }}>
               {(() => {
                 switch (view) {
-                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={setActiveNote} onReorder={saveReorder} onNewNote={() => { setActiveNote(undefined); setIsCreating(true); }} onViewCalendar={() => setView('calendar')} onViewJournal={() => setView('journal')} onViewFavorites={() => setView('favorites')} />;
+                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={setActiveNote} onReorder={saveReorder} onNewNote={() => { setActiveNote(undefined); setIsCreating(true); }} onViewCalendar={() => setView('calendar')} onViewJournal={() => setView('journal')} onViewTasks={() => setView('tasks')} onViewFavorites={() => setView('favorites')} onViewAI={() => setView('ai')} />;
                   case 'tomorrow': return <TomorrowView />;
                   case 'tasks': return <TodoList />;
                   case 'calendar': return <CalendarView notes={notes} onNoteClick={setActiveNote} resetTrigger={resetKey} />;
                   case 'timer': return <TimerView />;
                   case 'sync': return <SyncSettings />;
                   case 'settings': return <SettingsView />;
-                  case 'activity': return <ActivityView />;
+                  case 'ai': return <AIView />;
+                  // ai view removed
                   case 'journal':
                   case 'favorites':
                     return (
@@ -315,16 +319,18 @@ function GlobalUI() {
 
 function App() {
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
       <ThemeProvider>
-        <SettingsProvider>
-          <AuthProvider>
-            <TimerProvider>
-              <AuthenticatedApp />
-              <GlobalUI />
-            </TimerProvider>
-          </AuthProvider>
-        </SettingsProvider>
+        <TimeProvider>
+          <SettingsProvider>
+            <AuthProvider>
+              <TimerProvider>
+                <AuthenticatedApp />
+                <GlobalUI />
+              </TimerProvider>
+            </AuthProvider>
+          </SettingsProvider>
+        </TimeProvider>
       </ThemeProvider>
     </div>
   );

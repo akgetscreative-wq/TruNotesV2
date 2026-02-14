@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, X, Save, Calendar } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useHourlyLog } from '../../hooks/useHourlyLog';
+import { format } from 'date-fns';
 
 interface HourlyLogProps {
     date: Date;
@@ -11,7 +12,7 @@ interface HourlyLogProps {
 
 export const HourlyLog: React.FC<HourlyLogProps> = ({ date, onClose }) => {
     const { theme } = useTheme();
-    const { logs, saveLog } = useHourlyLog(date);
+    const { logs, saveLog } = useHourlyLog(format(date, 'yyyy-MM-dd'));
     const [activeHour, setActiveHour] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
     const [isSaving, setIsSaving] = useState(false);

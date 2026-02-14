@@ -1,42 +1,65 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { storage } from '../lib/storage';
-import { format } from 'date-fns';
 
-export function useHourlyLog(date: Date) {
+export function useHourlyLog(dateKey: string) {
     const [logs, setLogs] = useState<{ [hour: number]: string }>({});
     const [loading, setLoading] = useState(true);
-    const dateKey = format(date, 'yyyy-MM-dd');
+    const [prevKey, setPrevKey] = useState(dateKey);
+    const dateKeyRef = useRef(dateKey);
 
-    const refreshLogs = useCallback(async () => {
+    // 1. Immediate Render-phase Reset
+    // This wipes the state the instant the dateKey changes, before the component renders
+    if (dateKey !== prevKey) {
+        setLogs({});
+        setLoading(true);
+        setPrevKey(dateKey);
+        dateKeyRef.current = dateKey;
+    }
+
+    const refreshLogs = useCallback(async (keyToFetch: string) => {
         try {
-            const data = await storage.getHourlyLog(dateKey);
-            if (data) {
-                setLogs(data.logs);
+            const data = await storage.getHourlyLog(keyToFetch);
+
+            // 2. Race Condition Guard
+            // Only update state if this is still the active dateKey for this hook instance
+            if (keyToFetch === dateKeyRef.current) {
+                console.log(`[useHourlyLog] Loaded data for ${keyToFetch}:`, data?.logs);
+                setLogs(data?.logs || {});
             } else {
-                setLogs({});
+                console.warn(`[useHourlyLog] Ignoring stale logs for ${keyToFetch}`);
             }
         } catch (err) {
-            console.error('Failed to load hourly logs', err);
+            console.error('[useHourlyLog] Fetch error:', err);
         } finally {
-            setLoading(false);
+            if (keyToFetch === dateKeyRef.current) {
+                setLoading(false);
+            }
         }
-    }, [dateKey]);
+    }, []);
 
     useEffect(() => {
-        refreshLogs();
+        refreshLogs(dateKey);
 
         const unsubscribe = storage.onDataChange(() => {
-            refreshLogs();
+            refreshLogs(dateKeyRef.current);
         });
 
         return unsubscribe;
-    }, [refreshLogs]);
+    }, [dateKey, refreshLogs]);
 
-    const saveLog = async (hour: number, text: string) => {
-        const newLogs = { ...logs, [hour]: text };
-        await storage.saveHourlyLog(dateKey, newLogs);
-        setLogs(newLogs);
-    };
+    const saveLog = useCallback(async (hour: number, text: string) => {
+        const activeKey = dateKeyRef.current;
 
-    return { logs, loading, saveLog, refreshLogs };
+        // 3. Functional Update Pattern
+        // This ensures 'logs' is always the most current version from the state,
+        // not a stale version from a previous day.
+        setLogs(prev => {
+            const updated = { ...prev, [hour]: text };
+            // Save to DB in the background
+            storage.saveHourlyLog(activeKey, updated);
+            return updated;
+        });
+    }, []);
+
+    return { logs, loading, saveLog, refreshLogs: () => refreshLogs(dateKeyRef.current) };
 }

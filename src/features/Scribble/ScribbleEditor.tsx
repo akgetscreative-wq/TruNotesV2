@@ -1,10 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Trash2, Eraser, PenTool, Save, Undo, Redo } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, Trash2, Eraser, PenTool, Save, Undo, Redo, Download, Settings, Palette, Maximize2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Note } from '../../types';
 import { useTheme } from '../../hooks/useTheme';
 import { PremiumColorPicker } from './PremiumColorPicker';
-import { AnimatePresence } from 'framer-motion';
+
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Toast } from '@capacitor/toast';
+import { Share } from '@capacitor/share';
 
 interface ScribbleEditorProps {
     note: Note;
@@ -25,6 +28,17 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
     const [history, setHistory] = useState<string[]>([]);
     const [currentStep, setCurrentStep] = useState(-1);
     const [showColorPicker, setShowColorPicker] = useState(false);
+    const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+    const [bgColor, setBgColor] = useState(theme === 'dark' ? '#2c2c2c' : '#ffffff');
+    const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+    const [showSettings, setShowSettings] = useState(false);
+
+    // Zoom and Pan state
+    const [scale, setScale] = useState(1);
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
+    const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
+    const [lastTouchMidpoint, setLastTouchMidpoint] = useState<{ x: number, y: number } | null>(null);
 
     const saveToHistory = (dataUrl: string) => {
         const newHistory = history.slice(0, currentStep + 1);
@@ -40,8 +54,11 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
 
         const container = canvas.parentElement;
         if (container) {
-            canvas.width = container.clientWidth;
-            canvas.height = Math.max(container.clientHeight, 600);
+            const w = container.clientWidth;
+            const h = Math.max(container.clientHeight, 600);
+            canvas.width = w;
+            canvas.height = h;
+            setCanvasSize({ width: w, height: h });
         }
 
         const ctx = canvas.getContext('2d');
@@ -58,15 +75,181 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
                 };
                 img.src = note.content;
             } else {
-                // Fill background based on theme for new notes
-                ctx.fillStyle = theme === 'dark' ? '#2c2c2c' : '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Clear canvas for new notes (transparent background)
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 saveToHistory(canvas.toDataURL());
             }
         }
     }, []); // Run once on mount
 
+    const handleCanvasResize = (width: number, height: number) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Save current content
+        const tempImage = new Image();
+        tempImage.src = canvas.toDataURL();
+
+        tempImage.onload = () => {
+            canvas.width = width;
+            canvas.height = height;
+            setCanvasSize({ width, height });
+
+            // Restore context settings
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // Fill background
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw old content (centered or top-left)
+            ctx.drawImage(tempImage, 0, 0);
+
+            saveToHistory(canvas.toDataURL());
+            autoSave();
+        };
+    };
+
+    const handleBgColorChange = (newColor: string) => {
+        setBgColor(newColor);
+        // We don't bake it into the canvas anymore!
+        // Just trigger an auto-save so the preference is remembered (if we improved the note model to store metadata)
+        // For now, autoSave will just re-save the current canvas state.
+        autoSave();
+    };
+
+    const getCompositeDataUrl = useCallback((): string => {
+        const canvas = canvasRef.current;
+        if (!canvas) return '';
+
+        // Create a temporary canvas to composite background + drawing
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tCtx = tempCanvas.getContext('2d');
+        if (!tCtx) return '';
+
+        // 1. Fill background
+        tCtx.fillStyle = bgColor;
+        tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+        // 2. Draw the transparent sketch on top
+        // We need to wait for the canvas image to be ready if it's dirty? No, drawImage(canvas) is synchronous.
+        tCtx.drawImage(canvas, 0, 0);
+
+        return tempCanvas.toDataURL('image/png');
+    }, [bgColor]);
+
+    const handleExport = async () => {
+        try {
+            const dataUrl = getCompositeDataUrl();
+            const base64Data = dataUrl.split(',')[1];
+            const fileName = `${title.replace(/[^a-z0-9]/gi, '_') || 'scribble'}_${Date.now()}.png`;
+
+            if (isMobile) {
+                // Save to Documents folder on device
+                const result = await Filesystem.writeFile({
+                    path: fileName,
+                    data: base64Data,
+                    directory: Directory.Documents,
+                    // encoding: Encoding.UTF8 // Not needed for base64 data usually, but creates string
+                });
+
+                // Get the full URI to share or show
+                const uri = result.uri;
+
+                await Toast.show({
+                    text: `Saved to Documents as ${fileName}`,
+                    duration: 'long',
+                    position: 'bottom'
+                });
+
+                // Option to share immediately
+                await Share.share({
+                    title: 'Share Scribble',
+                    text: 'Check out my scribble!',
+                    url: uri,
+                    dialogTitle: 'Share your masterpiece'
+                });
+
+            } else {
+                // Desktop / Browser download
+                const link = document.createElement('a');
+                link.download = `${title || 'scribble'}.png`;
+                link.href = dataUrl;
+                link.click();
+            }
+        } catch (error) {
+            console.error('Export failed:', error);
+            if (isMobile) {
+                await Toast.show({
+                    text: 'Failed to export image',
+                    duration: 'short'
+                });
+            }
+        }
+    };
+
+    const handleWheel = (e: React.WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const delta = -e.deltaY;
+            const factor = Math.pow(1.1, delta / 100);
+            applyZoom(factor, e.clientX, e.clientY);
+        } else {
+            // Normal scroll pans if canvas is larger
+            setOffset(prev => ({
+                x: prev.x - e.deltaX,
+                y: prev.y - e.deltaY
+            }));
+        }
+    };
+
+    const applyZoom = (factor: number, clientX: number, clientY: number) => {
+        const canvasContainer = canvasRef.current?.parentElement;
+        if (!canvasContainer) return;
+
+        const rect = canvasContainer.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        setScale(prevScale => {
+            const newScale = Math.max(0.1, Math.min(10, prevScale * factor));
+
+            // Adjust offset to zoom into mouse position
+            setOffset(prevOffset => ({
+                x: x - (x - prevOffset.x) * (newScale / prevScale),
+                y: y - (y - prevOffset.y) * (newScale / prevScale)
+            }));
+
+            return newScale;
+        });
+    };
+
+    const getTouchDistance = (touches: React.TouchList) => {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const getTouchMidpoint = (touches: React.TouchList) => {
+        return {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2
+        };
+    };
+
     const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+        if ('touches' in e && e.touches.length === 2) {
+            setIsPanning(true);
+            setLastTouchDistance(getTouchDistance(e.touches));
+            setLastTouchMidpoint(getTouchMidpoint(e.touches));
+            return;
+        }
+
         setIsDrawing(true);
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -78,29 +261,68 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
         ctx.moveTo(x, y);
 
         // Paint a dot immediately on start (for taps)
-        ctx.strokeStyle = tool === 'eraser' ? (theme === 'dark' ? '#2c2c2c' : '#ffffff') : color;
+        ctx.strokeStyle = tool === 'eraser' ? 'rgba(0,0,0,0)' : color;
+        if (tool === 'eraser') {
+            ctx.globalCompositeOperation = 'destination-out';
+        } else {
+            ctx.globalCompositeOperation = 'source-over';
+        }
         ctx.lineWidth = lineWidth * (tool === 'eraser' ? 2 : 1);
         ctx.lineTo(x, y);
         ctx.stroke();
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
-        if (!isDrawing) return;
         const canvas = canvasRef.current;
         if (!canvas) return;
+
+        if ('touches' in e && e.touches.length === 2 && isPanning) {
+            // ... (keep zoom/pan logic)
+            const distance = getTouchDistance(e.touches);
+            const midpoint = getTouchMidpoint(e.touches);
+
+            if (lastTouchDistance && lastTouchMidpoint) {
+                // Handle Zoom
+                const zoomFactor = distance / lastTouchDistance;
+                if (Math.abs(zoomFactor - 1) > 0.01) {
+                    applyZoom(zoomFactor, midpoint.x, midpoint.y);
+                }
+
+                // Handle Pan
+                setOffset(prev => ({
+                    x: prev.x + (midpoint.x - lastTouchMidpoint.x),
+                    y: prev.y + (midpoint.y - lastTouchMidpoint.y)
+                }));
+            }
+
+            setLastTouchDistance(distance);
+            setLastTouchMidpoint(midpoint);
+            return;
+        }
+
+        if (!isDrawing) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         const { x, y } = getCoordinates(e, canvas);
 
-        ctx.strokeStyle = tool === 'eraser' ? (theme === 'dark' ? '#2c2c2c' : '#ffffff') : color;
-        ctx.lineWidth = lineWidth * (tool === 'eraser' ? 2 : 1);
+        ctx.strokeStyle = tool === 'eraser' ? 'rgba(0,0,0,0)' : color;
+        if (tool === 'eraser') {
+            ctx.globalCompositeOperation = 'destination-out';
+        } else {
+            ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.lineWidth = lineWidth;
 
         ctx.lineTo(x, y);
         ctx.stroke();
     };
 
     const stopDrawing = () => {
+        setIsPanning(false);
+        setLastTouchDistance(null);
+        setLastTouchMidpoint(null);
+
         if (!isDrawing) return;
         setIsDrawing(false);
         const canvas = canvasRef.current;
@@ -124,15 +346,18 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
             clientY = (e as React.MouseEvent).clientY;
         }
 
+        // Adjust for scale and offset
         return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
         };
     };
 
     const autoSave = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
+
+        // Save the transparent canvas state so it can be edited later
         const dataUrl = canvas.toDataURL();
 
         // Update note with new content
@@ -144,7 +369,7 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
         };
         onSave(updatedNote);
         setLastSaved(new Date().toLocaleTimeString());
-    }, [note, title, onSave]);
+    }, [note, title, onSave, bgColor]);
 
     const restoreState = (dataUrl: string) => {
         const canvas = canvasRef.current;
@@ -216,8 +441,7 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        ctx.fillStyle = theme === 'dark' ? '#2c2c2c' : '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         saveToHistory(canvas.toDataURL());
         autoSave();
     };
@@ -251,7 +475,7 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
             <div style={{
                 width: '100%',
                 maxWidth: isMobile ? 'none' : '1200px',
-                height: isMobile ? '100%' : '90vh',
+                height: isMobile ? '100dvh' : '90vh',
                 background: 'var(--bg-card)',
                 borderRadius: isMobile ? 0 : '24px',
                 display: 'flex',
@@ -260,7 +484,7 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
                 boxShadow: isMobile ? 'none' : 'var(--shadow-3d)'
             }}>
                 <div style={{
-                    padding: isMobile ? '32px 1rem 0.5rem 1rem' : '1rem 2rem',
+                    padding: isMobile ? 'calc(var(--safe-top) + 0.5rem) 1rem 0.5rem 1rem' : '1rem 2rem',
                     borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     alignItems: 'center',
@@ -347,6 +571,21 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
                         >
                             <Save size={18} />
                             {!isMobile && 'Save'}
+                        </button>
+
+                        <button
+                            onClick={handleExport}
+                            style={{
+                                color: 'var(--text-secondary)',
+                                padding: '0.5rem',
+                                borderRadius: '8px',
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer'
+                            }}
+                            title="Export as PNG"
+                        >
+                            <Download size={18} />
                         </button>
 
                         <button
@@ -479,6 +718,65 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
                             </div>
                         </div>
 
+                        <div style={{ width: '100%', height: '1px', background: 'var(--border-subtle)' }} />
+
+                        {/* Background Color */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Bg</span>
+                            <button
+                                onClick={() => setShowBgColorPicker(true)}
+                                style={{
+                                    width: isMobile ? '32px' : '36px',
+                                    height: isMobile ? '24px' : '28px',
+                                    padding: 0,
+                                    border: '1px solid var(--border-subtle)',
+                                    borderRadius: '50%',
+                                    cursor: 'pointer',
+                                    background: bgColor,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: bgColor === '#ffffff' ? '#000' : '#fff'
+                                }}
+                            >
+                                <Palette size={14} />
+                            </button>
+                        </div>
+
+                        {/* Zoom Controls */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{Math.round(scale * 100)}%</span>
+                            <button
+                                onClick={() => { setScale(1); setOffset({ x: 0, y: 0 }); }}
+                                style={{
+                                    padding: '0.5rem',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-secondary)',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer'
+                                }}
+                                title="Reset View"
+                            >
+                                <Maximize2 size={20} />
+                            </button>
+                        </div>
+
+                        {/* Canvas Settings */}
+                        <button
+                            onClick={() => setShowSettings(true)}
+                            style={{
+                                padding: '0.5rem',
+                                borderRadius: '8px',
+                                color: 'var(--text-secondary)',
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <Settings size={20} />
+                        </button>
+
                         <div style={{ marginTop: 'auto' }}>
                             <button
                                 onClick={handleClear}
@@ -497,8 +795,16 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
                         </div>
                     </div>
 
-                    {/* Canvas Area */}
-                    <div style={{ flex: 1, position: 'relative', background: theme === 'dark' ? '#1a1a1a' : '#f5f5f5', overflow: 'hidden' }}>
+                    <div
+                        onWheel={handleWheel}
+                        style={{
+                            flex: 1,
+                            position: 'relative',
+                            background: theme === 'dark' ? '#1a1a1a' : '#f5f5f5',
+                            overflow: 'hidden',
+                            touchAction: 'none'
+                        }}
+                    >
                         <canvas
                             ref={canvasRef}
                             onMouseDown={startDrawing}
@@ -512,14 +818,18 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
                                 display: 'block',
                                 touchAction: 'none',
                                 cursor: tool === 'pen' ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewport='0 0 16 16' fill='black'><circle cx='8' cy='8' r='4'/></svg>") 8 8, crosshair` : 'crosshair',
-                                width: '100%',
-                                height: '100%'
+                                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                                transformOrigin: '0 0',
+                                width: canvasSize.width || '100%',
+                                height: canvasSize.height || '100%',
+                                backgroundColor: bgColor,
+                                transition: 'background-color 0.3s'
                             }}
                         />
                     </div>
                 </div>
 
-                {/* Color Picker Overlay - Outside search sidebar to avoid clipping */}
+                {/* Custom Color Pickers */}
                 <AnimatePresence>
                     {showColorPicker && (
                         <div style={{
@@ -543,6 +853,102 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
                                     onChange={(c) => { setColor(c); setTool('pen'); }}
                                     onClose={() => setShowColorPicker(false)}
                                 />
+                            </motion.div>
+                        </div>
+                    )}
+
+                    {showBgColorPicker && (
+                        <div style={{
+                            position: 'fixed',
+                            top: 0, left: 0, right: 0, bottom: 0,
+                            zIndex: 10000,
+                            display: 'flex',
+                            alignItems: isMobile ? 'center' : 'flex-start',
+                            justifyContent: isMobile ? 'center' : 'flex-start',
+                            padding: isMobile ? '1rem' : '100px 0 0 100px'
+                        }} onClick={() => setShowBgColorPicker(false)}>
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ boxShadow: '0 30px 60px rgba(0,0,0,0.4)' }}
+                            >
+                                <div style={{ padding: '1rem', background: '#fff', borderRadius: '16px' }}>
+                                    <h3 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: '#333' }}>Page Background</h3>
+                                    <PremiumColorPicker
+                                        color={bgColor}
+                                        onChange={handleBgColorChange}
+                                        onClose={() => setShowBgColorPicker(false)}
+                                    />
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+
+                    {showSettings && (
+                        <div style={{
+                            position: 'fixed',
+                            top: 0, left: 0, right: 0, bottom: 0,
+                            zIndex: 10000,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '1rem',
+                            background: 'rgba(0,0,0,0.5)'
+                        }} onClick={() => setShowSettings(false)}>
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--bg-card)',
+                                    padding: '2rem',
+                                    borderRadius: '24px',
+                                    width: '100%',
+                                    maxWidth: '400px',
+                                    boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
+                                }}
+                            >
+                                <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Canvas Settings</h2>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Width (px)</label>
+                                        <input
+                                            type="number"
+                                            value={canvasSize.width}
+                                            onChange={(e) => setCanvasSize({ ...canvasSize, width: Number(e.target.value) })}
+                                            style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-primary)' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Height (px)</label>
+                                        <input
+                                            type="number"
+                                            value={canvasSize.height}
+                                            onChange={(e) => setCanvasSize({ ...canvasSize, height: Number(e.target.value) })}
+                                            style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-primary)' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                                        <button
+                                            onClick={() => setShowSettings(false)}
+                                            style={{ flex: 1, padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                handleCanvasResize(canvasSize.width, canvasSize.height);
+                                                setShowSettings(false);
+                                            }}
+                                            style={{ flex: 1, padding: '0.75rem', borderRadius: '8px', background: 'var(--accent-primary)', color: 'white', border: 'none', cursor: 'pointer' }}
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                </div>
                             </motion.div>
                         </div>
                     )}

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Note } from '../types';
-import { Save, ArrowLeft, Star, Tag, RotateCcw, RotateCw, List, PenTool, Bold, Highlighter, Type, Plus, Minus, Heading1, Heading2 } from 'lucide-react';
+import { Save, ArrowLeft, Star, Tag, RotateCcw, RotateCw, List, PenTool, Bold, Highlighter, Type, Plus, Minus, Heading1, Heading2, Sparkles } from 'lucide-react';
 import { BookReader } from './Book/BookReader';
 import { ColorPicker } from '../components/UI/ColorPicker';
 import { MoodSelector } from '../components/UI/MoodSelector';
 import { useThemeContext } from '../context/ThemeContext';
 import { AnimatePresence, motion } from 'framer-motion';
+import AIBridge from './AI/AIBridge';
 
 interface EditorProps {
     note?: Note; // If undefined, creating new
@@ -32,6 +33,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
     const [isFocused] = useState(false);
     const [isBookMode, setIsBookMode] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+    const [isPolishing, setIsPolishing] = useState(false);
 
     const { theme } = useThemeContext();
 
@@ -89,6 +91,8 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
         applyFormat('foreColor', '#000000');
         setShowHighlightPalette(false);
     };
+
+
 
     const changeFontSize = (delta: number) => {
         const current = parseInt(document.queryCommandValue('fontSize') || '3');
@@ -275,6 +279,110 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
         markUnsaved();
     };
 
+    const handleTruPolish = async () => {
+        if (!content.trim() || isPolishing) return;
+
+        // Strip HTML for the AI prompt
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = content;
+        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+
+        if (!plainText.trim()) return;
+
+        setIsPolishing(true);
+        if ((window as any).showToast) (window as any).showToast("Polishing... Wait for a moment", "info");
+
+        // Helper to load model if not ready
+        const ensureModelLoaded = async () => {
+            const last = await AIBridge.getLastModelPath();
+            if (last.path) {
+                await AIBridge.loadModel({ path: last.path, threads: 6 });
+                return true;
+            }
+            return false;
+        };
+
+        try {
+            // Detect model type from path for native template optimization
+            const last = await AIBridge.getLastModelPath();
+            const modelPath = last.path || "";
+            const lowerPath = modelPath.toLowerCase();
+
+            // COMPRESSED SURGICAL INSTRUCTION: No fluff, no leakage, max speed.
+            const instruction = `CMD: Polish text. FORMAT: <b>-bold, <ul><li>-bullets, <h2>-header. HL: [HL:Y]yellow, [HL:G]green, [HL:B]blue. ONLY polished text result. ---CONTENT START---\n\n`;
+            let prompt = "";
+
+            if (lowerPath.includes('llama-3')) {
+                prompt = `<|start_header_id|>user<|end_header_id|>\n\n${instruction}${plainText}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n\n`;
+            } else if (lowerPath.includes('gemma')) {
+                prompt = `<start_of_turn>user\n${instruction}${plainText}<end_of_turn>\n<start_of_turn>model\n`;
+            } else {
+                prompt = `<|im_start|>user\n${instruction}${plainText}<|im_end|>\n<|im_start|>assistant\n`;
+            }
+
+            // Speed Cap: Prevent looping/minute-long runs. Polish shouldn't be massive.
+            const maxPredict = Math.min(plainText.length * 2 + 100, 1000);
+
+            let result = await AIBridge.generate({
+                prompt,
+                temperature: 0.1,
+                n_predict: maxPredict,
+                penalty: 1.1
+            });
+
+            // Fallback: If model isn't loaded, try to load last model and retry
+            if (result.response.includes("Error: Model not loaded")) {
+                const loaded = await ensureModelLoaded();
+                if (loaded) {
+                    result = await AIBridge.generate({
+                        prompt,
+                        temperature: 0.1,
+                        n_predict: maxPredict,
+                        penalty: 1.1
+                    });
+                } else {
+                    throw new Error("No model is currently loaded. Please go to AI Assist and load a model first.");
+                }
+            }
+
+            if (result.response) {
+                let finalResponse = result.response.trim();
+
+                // Cut off accidental repetition after [AI_END]
+                if (finalResponse.includes('[AI_END]')) {
+                    finalResponse = finalResponse.split('[AI_END]')[0].trim();
+                }
+
+                // Safety: Convert any remaining markdown bold to HTML bold
+                finalResponse = finalResponse.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+
+                // Convert AI Highlight Tags to HTML Mark tags
+                // Y = Yellow, G = Green (soft), B = Blue (soft)
+                finalResponse = finalResponse
+                    .replace(/\[HL:Y\](.*?)\[\/HL\]/gi, '<mark style="background-color: rgba(255, 235, 59, 0.4); color: inherit; padding: 0 2px; border-radius: 4px;">$1</mark>')
+                    .replace(/\[HL:G\](.*?)\[\/HL\]/gi, '<mark style="background-color: rgba(76, 175, 80, 0.3); color: inherit; padding: 0 2px; border-radius: 4px;">$1</mark>')
+                    .replace(/\[HL:B\](.*?)\[\/HL\]/gi, '<mark style="background-color: rgba(33, 150, 243, 0.3); color: inherit; padding: 0 2px; border-radius: 4px;">$1</mark>');
+
+                const formatted = finalResponse
+                    .replace(/\n\n/g, '</p><p>')
+                    .replace(/\n/g, '<br>');
+
+                setContent(formatted);
+                if (editorRef.current) {
+                    editorRef.current.innerHTML = formatted;
+                }
+                markUnsaved();
+                if ((window as any).showToast) (window as any).showToast("Text refined!", "success");
+            }
+        } catch (err: any) {
+            console.error("AI Polish failed:", err);
+            const msg = err.message || "Refinement failed.";
+            if ((window as any).showToast) (window as any).showToast(msg, "error");
+        } finally {
+            setIsPolishing(false);
+        }
+    };
+
 
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
@@ -299,7 +407,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: isMobile ? '0.5rem 0.75rem' : '1rem 2rem',
+                padding: isMobile ? 'calc(var(--safe-top) + 0.5rem) 0.75rem 0.5rem 0.75rem' : '1rem 2rem',
                 borderBottom: 'none',
                 opacity: isFocused ? 0 : 1,
                 pointerEvents: isFocused ? 'none' : 'auto',
@@ -534,6 +642,8 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
                                 <PenTool size={18} color={iconColor} />
                             </button>
                         )}
+
+
                     </div>
                 </div>
 
@@ -552,6 +662,39 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
                             <span>{Math.ceil(content.length / 500)} min read</span>
                         </div>
                     )}
+
+                    <button
+                        onClick={handleTruPolish}
+                        disabled={isPolishing}
+                        title="Tru Polish"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: isPolishing ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-card)',
+                            color: isPolishing ? 'var(--accent-primary)' : 'var(--accent-primary)',
+                            width: isMobile ? '40px' : '44px',
+                            height: isMobile ? '40px' : '44px',
+                            borderRadius: '50%',
+                            border: isPolishing ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                            cursor: isPolishing ? 'default' : 'pointer',
+                            opacity: isPolishing ? 0.8 : 1,
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: isPolishing ? '0 0 15px rgba(99, 102, 241, 0.3)' : 'var(--shadow-soft)',
+                            padding: 0
+                        }}
+                    >
+                        {isPolishing ? (
+                            <motion.div
+                                animate={{ rotate: 360, scale: [1, 1.2, 1] }}
+                                transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+                            >
+                                <Sparkles size={20} fill="var(--accent-primary)" />
+                            </motion.div>
+                        ) : (
+                            <Sparkles size={20} />
+                        )}
+                    </button>
 
                     <button
                         onClick={handleManualSave}
@@ -607,9 +750,9 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
                     gap: isMobile ? '1rem' : '1.5rem',
                     position: 'relative',
                     width: '100%',
-                    minHeight: isFocused ? '100%' : 'calc(100vh - 120px)',
+                    minHeight: isFocused ? '100%' : 'calc(100dvh - 120px)',
                     backgroundColor: pageBg,
-                    padding: isMobile ? '1.5rem 0.35rem' : '2rem',
+                    padding: isMobile ? '1.5rem 0.35rem 3rem 0.35rem' : '2rem',
                     borderRadius: isMobile ? '16px' : '24px',
                     boxShadow: 'var(--shadow-soft)',
                     marginBottom: '2rem'

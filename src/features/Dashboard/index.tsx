@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Note } from '../../types';
-import { Activity, Clock, Star, Plus, Calendar as CalendarIcon, CheckSquare, Check } from 'lucide-react';
+import { Activity, Clock, Star, Plus, Calendar as CalendarIcon, CheckSquare, Check, Brain } from 'lucide-react';
 import { useThemeContext } from '../../context/ThemeContext';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -9,6 +9,8 @@ import bgImage from '../../assets/dashboard-bg-v2.jpg';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { HourlyLogSummary } from '../HourlyLog/HourlyLogSummary';
+import { useCurrentTime } from '../../context/TimeContext';
+import { addDays } from 'date-fns';
 
 interface DashboardProps {
     notes: Note[];
@@ -17,10 +19,12 @@ interface DashboardProps {
     onNewNote?: () => void;
     onViewCalendar?: () => void;
     onViewJournal?: () => void;
+    onViewTasks?: () => void;
     onViewFavorites?: () => void;
+    onViewAI?: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewNote, onViewCalendar, onViewJournal, onViewFavorites }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewNote, onViewCalendar, onViewJournal, onViewTasks, onViewFavorites, onViewAI }) => {
     const { theme } = useThemeContext();
     const { dashboardBg, bgDarknessLight, bgDarknessDark, bgBlurLight, bgBlurDark } = useSettings();
     const { username } = useAuth();
@@ -49,8 +53,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
 
     return (
         <div className="fade-in dashboard-scrollbar" style={{
-            height: '100%',
-            overflowY: 'auto',
             paddingBottom: '4rem',
             position: 'relative'
         }}>
@@ -136,13 +138,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                         isMobile={isMobile}
                         theme={theme}
                     />
+
                     <QuickActionCard
                         icon={CalendarIcon}
                         label="Open Calendar"
                         desc="Plan your schedule"
                         color="#8b5cf6"
                         onClick={onViewCalendar}
-                        delay={0}
+                        delay={0.2}
+                        isMobile={isMobile}
+                        theme={theme}
+                    />
+                    <QuickActionCard
+                        icon={Brain}
+                        label="AI Assist"
+                        desc="Ask anything"
+                        color="#ec4899"
+                        onClick={onViewAI}
+                        delay={0.3}
                         isMobile={isMobile}
                         theme={theme}
                     />
@@ -196,8 +209,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                     gap: isMobile ? '2.5rem' : '2rem',
                     marginBottom: '4rem'
                 }}>
-                    <TodayAgenda />
-                    <HourlyLogSummary />
+                    <TodayAgenda onViewTasks={onViewTasks} />
+                    <HourlyLogSummary onClickTitle={onViewCalendar} />
                 </div>
 
                 <div style={{
@@ -206,7 +219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                     gap: isMobile ? '2.5rem' : '2rem',
                     marginBottom: '4rem'
                 }}>
-                    <PendingTasks />
+                    <PendingTasks onViewTasks={onViewTasks} />
                 </div>
             </div>
         </div>
@@ -334,16 +347,19 @@ const StatCard = ({ icon: Icon, label, value, subtext, color, delay, onClick, is
     );
 };
 
-const TodayAgenda = () => {
-    const { getTodosByDate, getTodayStr, toggleTodo } = useTodos();
-    const todayStr = getTodayStr();
-    const todayTasks = getTodosByDate(todayStr);
+const TodayAgenda = ({ onViewTasks }: { onViewTasks?: () => void }) => {
+    const { getTodosByDate, toggleTodo } = useTodos();
+    const { dateKey } = useCurrentTime();
+    const todayTasks = getTodosByDate(dateKey);
 
     if (todayTasks.length === 0) {
         return (
             <section>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <h2
+                        onClick={onViewTasks}
+                        style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+                    >
                         <CheckSquare size={24} color="var(--accent-primary)" />
                         Today's scheduled tasks
                     </h2>
@@ -365,10 +381,14 @@ const TodayAgenda = () => {
     return (
         <section>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <motion.h2
+                    whileHover={{ x: 5, opacity: 0.8 }}
+                    onClick={onViewTasks}
+                    style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+                >
                     <CheckSquare size={24} color="var(--accent-primary)" />
                     Today's scheduled tasks
-                </h2>
+                </motion.h2>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Scheduled for Today</span>
             </div>
 
@@ -432,20 +452,25 @@ const TodayAgenda = () => {
     );
 };
 
-const PendingTasks = () => {
-    const { todos, getTodayStr, getTomorrowStr, toggleTodo } = useTodos();
-    const todayStr = getTodayStr();
-    const tomorrowStr = getTomorrowStr();
+const PendingTasks = ({ onViewTasks }: { onViewTasks?: () => void }) => {
+    const { todos, toggleTodo } = useTodos();
+    const { now, dateKey } = useCurrentTime();
+    const tomorrowStr = format(addDays(now, 1), 'yyyy-MM-dd');
+
     // Filter: Not complete AND Not for tomorrow AND Not for today
-    const pendingTasks = todos.filter(t => !t.completed && t.targetDate !== tomorrowStr && t.targetDate !== todayStr);
+    const pendingTasks = todos.filter(t => !t.completed && t.targetDate !== tomorrowStr && t.targetDate !== dateKey);
 
     return (
         <section>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <motion.h2
+                    whileHover={{ x: 5, opacity: 0.8 }}
+                    onClick={onViewTasks}
+                    style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+                >
                     <Plus size={24} color="#f59e0b" /> {/* Reusing Plus but maybe List icon would be better? Using Plus for now or maybe Activity */}
                     Pending Tasks
-                </h2>
+                </motion.h2>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Backlog</span>
             </div>
 

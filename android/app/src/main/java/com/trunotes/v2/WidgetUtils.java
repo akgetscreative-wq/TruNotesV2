@@ -47,8 +47,23 @@ public class WidgetUtils {
         return list;
     }
 
+    private static String getTodayDateKey() {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+        return sdf.format(new java.util.Date());
+    }
+
     public static JSONObject getHourlyLogs(Context context) {
         try {
+            String storedDate = getString(context, "widget_hourly_date");
+            String today = getTodayDateKey();
+            
+            if (storedDate == null || !storedDate.equals(today)) {
+                // Clear old logs for a new day
+                setString(context, "widget_hourly", "{}");
+                setString(context, "widget_hourly_date", today);
+                return new JSONObject();
+            }
+
             String json = getString(context, "widget_hourly");
             if (json != null) {
                 return new JSONObject(json);

@@ -1,29 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, X, Save } from 'lucide-react';
 import { useHourlyLog } from '../../hooks/useHourlyLog';
+import { useCurrentTime } from '../../context/TimeContext';
+import { format } from 'date-fns';
 
-export const HourlyLogSummary: React.FC = () => {
-    const [now, setNow] = useState(new Date());
+interface HourlyLogSummaryProps {
+    date?: Date;
+    onClickTitle?: () => void;
+}
 
-    useEffect(() => {
-        const timer = setInterval(() => {
-            const nextNow = new Date();
-            // Only update state if hour or day changed to avoid unnecessary re-renders
-            if (nextNow.getHours() !== now.getHours() || nextNow.getDate() !== now.getDate()) {
-                setNow(nextNow);
-            }
-        }, 30000); // Check every 30 seconds
-        return () => clearInterval(timer);
-    }, [now]);
+export const HourlyLogSummary: React.FC<HourlyLogSummaryProps> = ({ date, onClickTitle }) => {
+    const { now: globalNow, dateKey: globalDateKey } = useCurrentTime();
 
-    const currentHour = now.getHours();
-    const { logs, saveLog } = useHourlyLog(now);
+    // Use provided date or fallback to global synchronized time
+    const displayDate = date || globalNow;
+    const dateKey = date ? format(displayDate, 'yyyy-MM-dd') : globalDateKey;
+    const currentHour = displayDate.getHours();
+
+    const { logs, saveLog } = useHourlyLog(dateKey);
     const [editingHour, setEditingHour] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
-    // Show 2 hours before and 2 hours after
+    // Show 2 hours before and 2 hours after current hour
     const displayHours = Array.from({ length: 5 }, (_, i) => (currentHour - 2 + i + 24) % 24);
 
     const formatHour = (hour: number) => {
@@ -35,10 +35,14 @@ export const HourlyLogSummary: React.FC = () => {
     return (
         <section style={{ marginTop: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <motion.h2
+                    whileHover={onClickTitle ? { x: 5, opacity: 0.8 } : {}}
+                    onClick={onClickTitle}
+                    style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: onClickTitle ? 'pointer' : 'default' }}
+                >
                     <Clock size={24} color="var(--accent-primary)" />
                     Hourly Journey
-                </h2>
+                </motion.h2>
                 {!isMobile && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Focus Window</span>}
             </div>
 
@@ -72,7 +76,7 @@ export const HourlyLogSummary: React.FC = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '1rem',
-                                border: `1px solid ${isCurrent ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)'}`,
+                                border: `1px solid ${isCurrent ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)'} `,
                                 cursor: 'pointer'
                             }}
                         >
@@ -92,7 +96,7 @@ export const HourlyLogSummary: React.FC = () => {
                                 whiteSpace: 'pre-wrap',
                                 wordBreak: 'break-word'
                             }}>
-                                {logs[hour] || 'Add log entry...'}
+                                {logs[hour] || ''}
                             </span>
                         </motion.div>
                     );

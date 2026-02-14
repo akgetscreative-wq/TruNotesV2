@@ -27,9 +27,31 @@ export function useWidgetSync() {
 
                     // 2. Sync Hourly Log
                     const { value: hourlyJson } = await Preferences.get({ key: 'widget_hourly' });
-                    if (hourlyJson) {
-                        const nativeLogs = JSON.parse(hourlyJson);
-                        await storage.saveHourlyLog(today, nativeLogs);
+                    const { value: widgetDate } = await Preferences.get({ key: 'widget_hourly_date' });
+
+                    if (hourlyJson && hourlyJson !== '{}') {
+                        // Only sync if the widget's stored date matches today
+                        if (widgetDate === today) {
+                            try {
+                                const nativeLogs = JSON.parse(hourlyJson);
+                                const existing = await storage.getHourlyLog(today);
+                                // Merge: native updates/additions win over local if they exist
+                                const mergedLogs = existing ? { ...existing.logs, ...nativeLogs } : nativeLogs;
+
+                                console.log("WidgetSync: Merging hourly logs for today", mergedLogs);
+                                await storage.saveHourlyLog(today, mergedLogs);
+                            } catch (e) {
+                                console.error("WidgetSync: Hourly parse error", e);
+                            }
+                        } else {
+                            // If the date is stale OR missing, we MUST treat it as old data and clear it
+                            console.warn("WidgetSync: Stale widget date detected. Clearing native storage.", widgetDate, "vs today", today);
+                            await Preferences.set({ key: 'widget_hourly', value: '{}' });
+                            await Preferences.set({ key: 'widget_hourly_date', value: today });
+                        }
+                    } else if (!widgetDate) {
+                        // Ensure we at least have a date if logs are empty
+                        await Preferences.set({ key: 'widget_hourly_date', value: today });
                     }
 
                     // Clear flag

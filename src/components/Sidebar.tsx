@@ -1,17 +1,17 @@
-import { Home, Book, Star, CheckSquare, Calendar, LogOut, Hourglass, Coffee, Cloud, Settings, BarChart2 } from 'lucide-react';
+import { Home, Book, Star, CheckSquare, Calendar, LogOut, Hourglass, Coffee, Cloud, Settings, Brain } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from './UI/ThemeToggle';
 import { useTheme } from '../hooks/useTheme';
 
 interface SidebarProps {
-    currentView: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'activity';
-    onChangeView: (view: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'activity') => void;
+    currentView: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai';
+    onChangeView: (view: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai') => void;
     onLogout: () => void;
-    isOpen?: boolean;
     onClose?: () => void;
+    dragX?: any; // The buttery smooth MotionValue from Layout
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, onClose, dragX }) => {
     const { theme } = useTheme();
 
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -23,10 +23,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onL
         { id: 'favorites', label: 'Star', icon: Star },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
         { id: 'calendar', label: 'Plan', icon: Calendar },
-        { id: 'activity', label: 'Activity', icon: BarChart2 },
         { id: 'timer', label: 'Focus', icon: Hourglass },
         { id: 'sync', label: 'Sync', icon: Cloud },
         { id: 'settings', label: 'Settings', icon: Settings },
+        { id: 'ai', label: 'AI Assist', icon: Brain },
     ] as const;
 
     const renderButton = (item: typeof allItems[number], mobileStyle: boolean = false) => {
@@ -68,11 +68,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onL
         return (
             <>
                 {/* 1. Slide-out Drawer */}
-                {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
-                <aside className={`sidebar mobile-drawer ${isOpen ? 'open' : ''}`} style={{
-                    background: theme === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.6)',
-                    borderRight: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)'
-                }}>
+                <motion.aside
+                    className={`sidebar mobile-drawer`}
+                    style={{
+                        background: theme === 'dark' ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.6)',
+                        borderRight: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)',
+                        x: dragX // Directly follow finger
+                    }}
+                >
                     <div style={{ marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <img
@@ -95,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onL
                             <LogOut size={20} /> Logout
                         </button>
                     </div>
-                </aside>
+                </motion.aside>
             </>
         );
     }

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
+const fs = require('fs');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -28,70 +29,62 @@ const createWindow = () => {
 
     mainWindow.setMenuBarVisibility(false);
 
-    // Activity Tracker (PC)
-    let lastApp = "";
-    let startTime = Date.now();
-
-    const trackActivity = () => {
-        if (process.platform !== 'win32') return;
-
-        const psScript = `
-            $code = @'
-                using System;
-                using System.Runtime.InteropServices;
-                using System.Text;
-                public class Utils {
-                    [DllImport("user32.dll")]
-                    public static extern IntPtr GetForegroundWindow();
-                    [DllImport("user32.dll")]
-                    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
-                    [DllImport("user32.dll")]
-                    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-                }
-'@
-            Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
-            $hwnd = [Utils]::GetForegroundWindow()
-            $sb = New-Object System.Text.StringBuilder 256
-            [Utils]::GetWindowText($hwnd, $sb, 256) | Out-Null
-            $pid = 0
-            [Utils]::GetWindowThreadProcessId($hwnd, [ref]$pid) | Out-Null
-            $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
-            if ($p) { write-host "$($p.ProcessName)|$($sb.ToString())" }
-        `;
-
-        exec(`powershell -command "${psScript.replace(/"/g, '\\"')}"`, (error: any, stdout: any) => {
-            if (error || !stdout) return;
-            const out = stdout.trim();
-            if (!out.includes('|')) return;
-
-            const [procName, title] = out.split('|');
-            const currentApp = procName.toLowerCase();
-
-            if (currentApp !== lastApp) {
-                const now = Date.now();
-                if (lastApp && lastApp !== "idle") {
-                    mainWindow.webContents.send('activity-event', {
-                        appName: lastApp,
-                        pkgName: lastApp,
-                        startTime,
-                        endTime: now,
-                        deviceType: 'pc',
-                        deviceName: 'Windows PC'
-                    });
-                }
-                lastApp = currentApp;
-                startTime = now;
-            }
-        });
-    };
-
-    setInterval(trackActivity, 5000); // Check every 5 seconds
 
     // IPC for Asset Path
     ipcMain.handle('get-asset-path', (event: any, relativePath: any) => {
         const appPath = app.isPackaged ? process.resourcesPath : app.getAppPath();
         const fullPath = path.join(appPath, 'external_assets', relativePath);
         return `file://${fullPath.replace(/\\/g, '/')}`;
+    });
+
+    // AI Handling (node-llama-cpp)
+    let llamaModel: any = null;
+    let llamaContext: any = null;
+
+    ipcMain.handle('ai-command', async (_event: any, { command, text }: { command: string, text: string }) => {
+        try {
+            const { LlamaModel, LlamaContext, LlamaChatSession } = require('node-llama-cpp');
+
+            if (!llamaModel) {
+                let modelPath = 'D:/AI/Store/llama-3.2-1b-instruct-q4_k_m.gguf';
+
+                if (!fs.existsSync(modelPath)) {
+                    const appPath = app.isPackaged ? process.resourcesPath : app.getAppPath();
+                    modelPath = path.join(appPath, 'external_assets', 'models', 'llama-3.2-1b-instruct-q4_k_m.gguf');
+                }
+
+                if (!fs.existsSync(modelPath)) {
+                    throw new Error('Model file not found. Please place "llama-3.2-1b-instruct-q4_k_m.gguf" in "D:/AI/Store/" or "external_assets/models/"');
+                }
+
+                llamaModel = new LlamaModel({
+                    modelPath: modelPath
+                });
+            }
+
+            if (!llamaContext) {
+                llamaContext = new LlamaContext({ model: llamaModel });
+            }
+
+            const session = new LlamaChatSession({ context: llamaContext });
+
+            let prompt = '';
+            if (command === 'summarize') {
+                prompt = `Please provide a concise summary of the following note. Focus on the main points and keep it brief:\n\n${text}`;
+            } else if (command === 'improve') {
+                prompt = `Please improve the grammar and flow of the following note while keeping the original meaning and tone:\n\n${text}`;
+            } else if (command === 'fix-grammar') {
+                prompt = `Please fix any grammar and spelling mistakes in the following text:\n\n${text}`;
+            } else {
+                prompt = `${command}:\n\n${text}`;
+            }
+
+            const result = await session.prompt(prompt);
+            return { success: true, result };
+        } catch (error: any) {
+            console.error('AI Error:', error);
+            return { success: false, error: error?.message || 'Unknown AI error' };
+        }
     });
 
     // Handle External Links

@@ -18,7 +18,7 @@
     "appId": "com.trunotes.v2",
     "productName": "TruNotes v2",
     "directories": {
-      "output": "release_v7"
+      "output": "release_v8"
     },
     "files": [
       "dist",
@@ -49,7 +49,10 @@
     "@capacitor/browser": "^8.0.0",
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",
+    "@capacitor/filesystem": "^8.1.0",
     "@capacitor/preferences": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/toast": "^8.0.0",
     "@capgo/capacitor-native-biometric": "^8.3.3",
     "date-fns": "^4.1.0",
     "electron-squirrel-startup": "^1.0.1",

@@ -33,16 +33,3 @@ export interface HourlyLog {
     date: string; // YYYY-MM-DD
     logs: { [hour: number]: string };
 }
-
-export interface ActivitySession {
-    id: string;
-    appName: string;
-    pkgName: string; // package name on Android, exe name on Windows
-    startTime: number;
-    endTime: number;
-    duration: number; // in milliseconds
-    deviceType: 'android' | 'pc';
-    deviceName: string;
-    date: string; // YYYY-MM-DD
-    updatedAt: number;
-}

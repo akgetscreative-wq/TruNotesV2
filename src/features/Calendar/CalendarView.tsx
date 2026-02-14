@@ -526,7 +526,7 @@ const TimelineView: React.FC<{
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const containerRef = useRef<HTMLDivElement>(null);
     const { theme } = useTheme();
-    const { logs, saveLog } = useHourlyLog(date);
+    const { logs, saveLog } = useHourlyLog(format(date, 'yyyy-MM-dd'));
     const [editingHour, setEditingHour] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
 

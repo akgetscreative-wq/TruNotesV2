@@ -85,7 +85,7 @@ export const NoteList: React.FC<NoteListProps> = ({
                         background: 'rgba(255,255,255,0.03)',
                         border: '2px dashed var(--border-subtle)',
                         borderRadius: '12px',
-                        height: isMobile ? '200px' : '240px', // Match NoteCard height
+                        height: isMobile ? '190px' : '240px', // Match NoteCard height
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',

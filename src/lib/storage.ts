@@ -1,5 +1,5 @@
 import { openDB, type DBSchema } from 'idb';
-import type { Note, Todo, ActivitySession } from '../types';
+import type { Note, Todo } from '../types';
 import { Preferences } from '@capacitor/preferences';
 import { format } from 'date-fns';
 
@@ -21,11 +21,6 @@ interface TruNotesDB extends DBSchema {
             logs: { [hour: number]: string };
             updatedAt?: number;
         };
-    };
-    activity_sessions: {
-        key: string;
-        value: ActivitySession;
-        indexes: { 'by-date': string; 'by-device': string };
     };
 }
 
@@ -58,29 +53,11 @@ const dbPromise = openDB<TruNotesDB>('trunotes-db', 6, {
         if (oldVersion < 5 && !db.objectStoreNames.contains('hourly_logs')) {
             db.createObjectStore('hourly_logs', { keyPath: 'date' });
         }
-
-        if (oldVersion < 6) {
-            if (!db.objectStoreNames.contains('activity_sessions')) {
-                const activityStore = db.createObjectStore('activity_sessions', { keyPath: 'id' });
-                activityStore.createIndex('by-date', 'date');
-                activityStore.createIndex('by-device', 'deviceType');
-            }
-        }
     },
 });
 
 export const storage = {
     // ... preceding methods ...
-    async saveActivitySession(session: ActivitySession): Promise<void> {
-        const db = await dbPromise;
-        await db.put('activity_sessions', session);
-        this.notifyListeners();
-    },
-
-    async getActivitySessions(date: string): Promise<ActivitySession[]> {
-        const db = await dbPromise;
-        return db.getAllFromIndex('activity_sessions', 'by-date', date);
-    },
     async getAllNotes(): Promise<Note[]> {
         const db = await dbPromise;
         const all = await db.getAll('notes');
@@ -153,6 +130,20 @@ export const storage = {
         return db.get('hourly_logs', date);
     },
 
+    async getAllHourlyLogs() {
+        const db = await dbPromise;
+        return db.getAll('hourly_logs');
+    },
+
+    async updateHourlyLogEntry(date: string, hour: number, text: string) {
+        const db = await dbPromise;
+        const existing = await this.getHourlyLog(date);
+        const logs = existing ? { ...existing.logs } : {};
+        logs[hour] = text;
+        await db.put('hourly_logs', { date, logs, updatedAt: Date.now() });
+        this.notifyListeners();
+    },
+
     async saveHourlyLog(date: string, logs: { [hour: number]: string }) {
         const db = await dbPromise;
         await db.put('hourly_logs', { date, logs, updatedAt: Date.now() });
@@ -164,19 +155,20 @@ export const storage = {
         const notes = await db.getAll('notes');
         const todos = await db.getAll('todos');
         const hourlyLogs = await db.getAll('hourly_logs');
-        const activity = await db.getAll('activity_sessions');
-        return { notes, todos, hourlyLogs, activity, timestamp: Date.now() };
+        // NOTE: activity_sessions is intentionally excluded from export for privacy
+        // Activity data stays 100% local and is never backed up to cloud
+        return { notes, todos, hourlyLogs, timestamp: Date.now() };
     },
 
-    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[], activity?: ActivitySession[] }) {
+    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[] }) {
         console.log("storage: Performing smart merge...");
         await this.mergeDatabase(data);
         this.notifyListeners();
     },
 
-    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[], activity?: ActivitySession[] }) {
+    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[] }) {
         const db = await dbPromise;
-        const tx = db.transaction(['notes', 'todos', 'hourly_logs', 'activity_sessions'], 'readwrite');
+        const tx = db.transaction(['notes', 'todos', 'hourly_logs'], 'readwrite');
 
         // 1. Merge Notes
         const noteStore = tx.objectStore('notes');
@@ -246,31 +238,12 @@ export const storage = {
             }
         }
 
-        // 4. Merge Activity Sessions
-        if (cloudData.activity) {
-            const activityStore = tx.objectStore('activity_sessions');
-            const localSessions = await activityStore.getAll();
-            const sessionMap = new Map<string, ActivitySession>();
-            localSessions.forEach(s => sessionMap.set(s.id, s));
 
-            for (const cloudSession of cloudData.activity) {
-                const localSession = sessionMap.get(cloudSession.id);
-                if (!localSession) {
-                    sessionMap.set(cloudSession.id, cloudSession);
-                } else {
-                    const cloudTime = cloudSession.updatedAt || 0;
-                    const localTime = localSession.updatedAt || 0;
-                    if (cloudTime > localTime) {
-                        sessionMap.set(cloudSession.id, cloudSession);
-                    }
-                }
-            }
-            for (const session of sessionMap.values()) {
-                await activityStore.put(session);
-            }
-        }
+        // NOTE: Activity sessions are intentionally NOT synced for privacy
+        // They remain 100% local to each device
 
         await tx.done;
+        this.notifyListeners();
     },
 
     listeners: [] as (() => void)[],
@@ -291,14 +264,19 @@ export const storage = {
         // Sync to Widget (Android Native Bridge)
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
-            const todos = await this.getTodosByDate(today);
+
+            // Get ALL incomplete todos for the widget (pending tasks)
+            const allTodos = await this.getAllTodos();
+            const pendingTodos = allTodos.filter(t => !t.completed);
+
             const hourlyLog = await this.getHourlyLog(today);
 
             // Save to Capacitor Preferences (which maps to Android SharedPreferences)
-            // We set both prefixed and non-prefixed just to be absolutely certain the widget can find it
             const data = [
-                { key: 'widget_todos', value: JSON.stringify(todos) },
-                { key: 'widget_hourly', value: JSON.stringify(hourlyLog?.logs || {}) }
+                { key: 'widget_todos', value: JSON.stringify(pendingTodos) },
+                { key: 'widget_hourly', value: JSON.stringify(hourlyLog?.logs || {}) },
+                { key: 'widget_hourly_date', value: today },
+                { key: 'needs_native_sync', value: 'false' } // Reset flag after app-to-widget sync
             ];
 
             for (const item of data) {
@@ -308,7 +286,7 @@ export const storage = {
                 });
             }
 
-            console.log("storage: Widget data updated for", today);
+            console.log("storage: Widget data updated - ", pendingTodos.length, "pending tasks");
         } catch (e) {
             console.warn('Widget sync failed:', e);
         }

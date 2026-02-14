@@ -27,6 +27,8 @@ dist-ssr
 release/
 release_v2/
 release_v7/
+release_v8/
+release_*/
 TruNotes-v6/
 TRU version recordings/
 dist/

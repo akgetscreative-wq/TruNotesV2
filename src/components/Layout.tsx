@@ -1,20 +1,40 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { Menu } from 'lucide-react';
 
 interface LayoutProps {
     children: React.ReactNode;
     sidebar?: React.ReactElement;
-    isFocusedContent?: boolean; // If true (Editor/Scribble), keep menu hidden until edge slide
-    disableGlobalSwipe?: boolean; // Disable global drawer swipes (used for Calendar)
+    isFocusedContent?: boolean;
+    disableGlobalSwipe?: boolean;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, sidebar, isFocusedContent, disableGlobalSwipe }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isToggleButtonVisible, setIsToggleButtonVisible] = useState(true);
     const inactivityTimer = useRef<any>(null);
-    const touchStartPos = useRef({ x: 0, y: 0 });
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
+    // --- Buttery Smooth Gesture Logic ---
+    const SIDEBAR_WIDTH = 280;
+    // x tracks the sidebar offset: -SIDEBAR_WIDTH (closed) to 0 (open)
+    const x = useMotionValue(-SIDEBAR_WIDTH);
+    // STIFF SPRING: 1000 stiffness + 60 damping = Instant but smooth snap
+    const springX = useSpring(x, { damping: 60, stiffness: 1000, mass: 0.5, restDelta: 0.001 });
+
+    // Derived values for the overlay
+    const opacity = useTransform(springX, [-SIDEBAR_WIDTH, 0], [0, 1]);
+    const backdropBlur = useTransform(springX, [-SIDEBAR_WIDTH, 0], [0, 8]);
+
+    const openMenu = () => {
+        setIsMenuOpen(true);
+        x.set(0);
+    };
+
+    const closeMenu = () => {
+        setIsMenuOpen(false);
+        x.set(-SIDEBAR_WIDTH);
+    };
 
     const resetInactivityTimer = () => {
         setIsToggleButtonVisible(true);
@@ -26,122 +46,144 @@ export const Layout: React.FC<LayoutProps> = ({ children, sidebar, isFocusedCont
 
     useEffect(() => {
         if (!isMobile) return;
+        if (isFocusedContent) setIsToggleButtonVisible(false);
+        else resetInactivityTimer();
 
-        // In focused content, we start hidden
-        if (isFocusedContent) {
-            setIsToggleButtonVisible(false);
-        } else {
-            resetInactivityTimer();
-        }
-
-        // In normal views, any interaction shows the button
         const handleInteraction = () => {
-            if (!isFocusedContent) {
-                resetInactivityTimer();
-            }
-        };
-
-        // Edge slide detection & Global Swipe
-        const handleTouchStart = (e: TouchEvent) => {
-            touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
             if (!isFocusedContent) resetInactivityTimer();
         };
 
-        const handleTouchMove = (e: TouchEvent) => {
-            const currentX = e.touches[0].clientX;
-            const startX = touchStartPos.current.x;
-
-            // If focused and sliding from left edge (within 25px) to show menu button
-            if (isFocusedContent && startX < 25 && currentX > startX + 40) {
-                setIsToggleButtonVisible(true);
-                resetInactivityTimer();
-            }
-        };
-
-        const handleTouchEnd = (e: TouchEvent) => {
-            if (disableGlobalSwipe || !isMobile) return;
-
-            const endX = e.changedTouches[0].clientX;
-            const endY = e.changedTouches[0].clientY;
-            const diffX = endX - touchStartPos.current.x;
-            const diffY = endY - touchStartPos.current.y;
-
-            // Thresholds
-            const SWIPE_X_THRESHOLD = 80;
-            const SWIPE_Y_MAX = 50; // Ignore vertical swipes
-
-            if (Math.abs(diffY) > SWIPE_Y_MAX) return;
-
-            if (diffX > SWIPE_X_THRESHOLD) {
-                // Right Swipe -> Open Menu (only if swiped from near left edge)
-                if (touchStartPos.current.x < 100) {
-                    setIsMenuOpen(true);
-                }
-            } else if (diffX < -SWIPE_X_THRESHOLD) {
-                // Left Swipe -> Close Menu
-                if (isMenuOpen) {
-                    setIsMenuOpen(false);
-                }
-            }
-        };
-
-        window.addEventListener('touchstart', handleTouchStart);
-        window.addEventListener('touchmove', handleTouchMove);
-        window.addEventListener('touchend', handleTouchEnd);
         window.addEventListener('mousedown', handleInteraction);
         window.addEventListener('scroll', handleInteraction, true);
-
         return () => {
-            window.removeEventListener('touchstart', handleTouchStart);
-            window.removeEventListener('touchmove', handleTouchMove);
-            window.removeEventListener('touchend', handleTouchEnd);
             window.removeEventListener('mousedown', handleInteraction);
             window.removeEventListener('scroll', handleInteraction, true);
-            if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
         };
-    }, [isMobile, isFocusedContent, disableGlobalSwipe, isMenuOpen]);
+    }, [isMobile, isFocusedContent]);
 
     return (
-        <div className="layout" style={{
-            minHeight: '100vh',
-            display: 'flex',
-            background: 'transparent',
-            isolation: 'isolate'
-        }}>
-            {/* Hamburger for mobile */}
-            <AnimatePresence>
-                {isMobile && isToggleButtonVisible && (
-                    <motion.button
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="mobile-menu-btn"
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    >
-                        {isMenuOpen ? <Menu size={20} /> : <Menu size={20} />}
-                    </motion.button>
-                )}
-            </AnimatePresence>
-
-            {/* Injected Sidebar Logic */}
-            {sidebar && React.cloneElement(sidebar as React.ReactElement<any>, {
-                isOpen: isMenuOpen,
-                onClose: () => setIsMenuOpen(false)
-            })}
-
-            <main
-                onClick={() => isMobile && isMenuOpen && setIsMenuOpen(false)}
-                style={{ flex: 1, position: 'relative', overflowY: 'auto', height: '100vh', cursor: (isMobile && isMenuOpen) ? 'pointer' : 'default' }}
-            >
+        <div
+            className="layout"
+            style={{
+                height: '100%',
+                display: 'flex',
+                background: 'transparent',
+                isolation: 'isolate',
+                overflow: 'hidden'
+            }}
+        >
+            {/* 1. Global Touch Handler (Pan on the whole layout) */}
+            {isMobile && !disableGlobalSwipe && (
                 <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4 }}
-                    style={{ width: '100%', height: '100%', padding: 0 }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: isMenuOpen ? 2045 : 0,
+                        pointerEvents: isMenuOpen ? 'auto' : 'none',
+                        background: 'transparent'
+                    }}
+                    onClick={closeMenu}
+                    onPan={(_, info) => {
+                        if (!isMenuOpen) return;
+                        if (Math.abs(info.offset.x) > Math.abs(info.offset.y) * 1.5) {
+                            const newX = Math.min(0, Math.max(-SIDEBAR_WIDTH, info.offset.x));
+                            x.set(newX);
+                        }
+                    }}
+                    onPanEnd={(_, info) => {
+                        if (!isMenuOpen) return;
+                        const velocityThreshold = 50;
+                        const offsetThreshold = 20;
+                        const shouldClose = info.velocity.x < -velocityThreshold || (info.offset.x < -offsetThreshold && info.velocity.x < velocityThreshold);
+
+                        if (shouldClose) closeMenu();
+                        else openMenu();
+                    }}
+                />
+            )}
+
+            <motion.div
+                style={{ flex: 1, display: 'flex', width: '100vw', height: '100%', touchAction: 'pan-y' }}
+                onPan={(_, info) => {
+                    if (disableGlobalSwipe || !isMobile) return;
+
+                    // Only handle pan if it's primarily horizontal
+                    if (Math.abs(info.offset.x) > Math.abs(info.offset.y) * 1.5) {
+                        const currentPos = isMenuOpen ? 0 : -SIDEBAR_WIDTH;
+                        const newX = Math.min(0, Math.max(-SIDEBAR_WIDTH, currentPos + info.offset.x));
+                        x.set(newX);
+                    }
+                }}
+                onPanEnd={(_, info) => {
+                    if (disableGlobalSwipe || !isMobile) return;
+
+                    // Hyper-sensitive snapping (similar to Calendar month change)
+                    const velocityThreshold = 50;
+                    const offsetThreshold = 20;
+
+                    const shouldOpen = info.velocity.x > velocityThreshold || (info.offset.x > offsetThreshold && info.velocity.x > -velocityThreshold);
+                    const shouldClose = info.velocity.x < -velocityThreshold || (info.offset.x < -offsetThreshold && info.velocity.x < velocityThreshold);
+
+                    if (isMenuOpen) {
+                        if (shouldClose) closeMenu();
+                        else openMenu();
+                    } else {
+                        if (shouldOpen) openMenu();
+                        else closeMenu();
+                    }
+                }}
+            >
+                {/* 2. Hamburger for mobile */}
+                <AnimatePresence>
+                    {isMobile && isToggleButtonVisible && (
+                        <motion.button
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="mobile-menu-btn"
+                            onClick={() => isMenuOpen ? closeMenu() : openMenu()}
+                            style={{ zIndex: 2100 }}
+                        >
+                            <Menu size={20} />
+                        </motion.button>
+                    )}
+                </AnimatePresence>
+
+                {/* 3. Smooth Overlay */}
+                {isMobile && (
+                    <motion.div
+                        onClick={closeMenu}
+                        style={{
+                            position: 'fixed', inset: 0,
+                            backgroundColor: 'rgba(0,0,0,0.4)',
+                            opacity,
+                            backdropFilter: `blur(${backdropBlur}px)`,
+                            WebkitBackdropFilter: `blur(${backdropBlur}px)`,
+                            zIndex: 2040,
+                            pointerEvents: 'none' // Clicks are handled by the global overlay or main container
+                        }}
+                    />
+                )}
+
+                {/* 4. The Sidebar with injected MotionValue */}
+                {sidebar && React.cloneElement(sidebar as React.ReactElement<any>, {
+                    onClose: closeMenu,
+                    dragX: springX
+                })}
+
+                <main
+                    style={{ flex: 1, position: 'relative', overflowY: disableGlobalSwipe ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column' }}
                 >
-                    {children}
-                </motion.div>
-            </main>
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4 }}
+                        style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                    >
+                        {children}
+                    </motion.div>
+                </main>
+            </motion.div>
         </div>
     );
 };
