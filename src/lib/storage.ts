@@ -155,18 +155,29 @@ export const storage = {
         const notes = await db.getAll('notes');
         const todos = await db.getAll('todos');
         const hourlyLogs = await db.getAll('hourly_logs');
+
+        // Fetch AI Data from Preferences
+        const { value: memories } = await Preferences.get({ key: 'ai_persistent_memories' });
+        const { value: config } = await Preferences.get({ key: 'ai_engine_config' });
+
         // NOTE: activity_sessions is intentionally excluded from export for privacy
-        // Activity data stays 100% local and is never backed up to cloud
-        return { notes, todos, hourlyLogs, timestamp: Date.now() };
+        return {
+            notes,
+            todos,
+            hourlyLogs,
+            ai_memories: memories ? JSON.parse(memories) : [],
+            ai_config: config ? JSON.parse(config) : null,
+            timestamp: Date.now()
+        };
     },
 
-    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[] }) {
+    async importDatabase(data: { notes: Note[], todos: Todo[], hourlyLogs?: any[], ai_memories?: string[], ai_config?: any }) {
         console.log("storage: Performing smart merge...");
         await this.mergeDatabase(data);
         this.notifyListeners();
     },
 
-    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[] }) {
+    async mergeDatabase(cloudData: { notes: Note[], todos: Todo[], hourlyLogs?: any[], ai_memories?: string[], ai_config?: any }) {
         const db = await dbPromise;
         const tx = db.transaction(['notes', 'todos', 'hourly_logs'], 'readwrite');
 
@@ -239,8 +250,25 @@ export const storage = {
         }
 
 
-        // NOTE: Activity sessions are intentionally NOT synced for privacy
-        // They remain 100% local to each device
+        // 4. Merge AI Data
+        if (cloudData.ai_memories && cloudData.ai_memories.length > 0) {
+            const { value: localMemStr } = await Preferences.get({ key: 'ai_persistent_memories' });
+            const localMem: string[] = localMemStr ? JSON.parse(localMemStr) : [];
+            // Union merge: keep all unique memories
+            const mergedMem = Array.from(new Set([...localMem, ...cloudData.ai_memories]));
+            await Preferences.set({ key: 'ai_persistent_memories', value: JSON.stringify(mergedMem) });
+        }
+
+        if (cloudData.ai_config) {
+            const { value: localConfigStr } = await Preferences.get({ key: 'ai_engine_config' });
+            if (!localConfigStr) {
+                await Preferences.set({ key: 'ai_engine_config', value: JSON.stringify(cloudData.ai_config) });
+            } else {
+                // For config, we usually just take the cloud version if it's part of a manual pull,
+                // or keep local if preferred. Here we take cloud as "truth" for sync.
+                await Preferences.set({ key: 'ai_engine_config', value: JSON.stringify(cloudData.ai_config) });
+            }
+        }
 
         await tx.done;
         this.notifyListeners();
