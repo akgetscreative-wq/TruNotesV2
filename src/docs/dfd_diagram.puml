@@ -1,0 +1,47 @@
+@startuml
+title Data Flow Diagram (DFD) - Level 1
+left to right direction
+skinparam packageStyle rectangle
+
+actor User as U
+
+rectangle "TruNotesv2 System" {
+    rectangle "1.0 Authentication" as P1
+    rectangle "2.0 Note Management" as P2
+    rectangle "3.0 AI Engine (Native)" as P3
+    rectangle "4.0 Sync Manager" as P4
+    
+    database "Local DB\n(IndexedDB)" as D1
+    database "Secure Storage\n(Tokens)" as D2
+    database "File System\n(Models/Assets)" as D3
+}
+
+cloud "Google Drive" as EXT1
+cloud "HuggingFace" as EXT2
+
+' Authentication Flows
+U --> P1 : Credentials / Biometrics
+P1 --> D2 : Save/Read Auth Token
+P1 --> U : Session Status
+
+' Note Management Flows
+U --> P2 : Create/Edit Note, Scribbles
+P2 --> D1 : Save Note Data, Tasks, Settings
+D1 --> P2 : Retrieve Notes
+P2 --> U : Display Content
+
+' Sync Flows
+P4 --> D1 : Read Modified Notes
+P4 --> D2 : Read Auth Token
+P4 <--> EXT1 : Encrypted Note Data (Sync)
+P4 --> D1 : Update Synced State
+
+' AI Flows
+U --> P3 : Chat Prompts, Commands
+P2 --> P3 : Context (Recent Notes, Tasks)
+EXT2 --> P3 : Download GGUF Models
+P3 --> D3 : Store Models
+D3 --> P3 : Load Model to RAM
+P3 --> U : AI Response (Text/Actions)
+
+@enduml

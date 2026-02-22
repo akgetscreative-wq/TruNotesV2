@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, History, Check, Trash2, Coffee } from 'lucide-react';
+import { Plus, History, Check, Trash2, Coffee, Repeat } from 'lucide-react';
 import { useTodos } from '../../hooks/useTodos';
 import { useTheme } from '../../hooks/useTheme';
 import { format, parseISO } from 'date-fns';
 
 export const TomorrowView: React.FC = () => {
-    const { todos, addTodo, toggleTodo, deleteTodo, getTodosByDate, getTomorrowStr } = useTodos();
+    const { todos, addTodo, toggleTodo, deleteTodo, deleteDateHistory, getTodosByDate, getTomorrowStr } = useTodos();
     const { theme } = useTheme();
     const [inputValue, setInputValue] = useState('');
     const [isFocused, setIsFocused] = useState(false);
 
     const tomorrowStr = getTomorrowStr();
     const tomorrowTasks = getTodosByDate(tomorrowStr);
+    const dailyTasks = getTodosByDate('daily');
+
+    const [isDailyMode, setIsDailyMode] = useState(false);
 
     // Get History: Unique dates in the past that have tasks
     const historyDates = Array.from(new Set(
@@ -24,7 +27,7 @@ export const TomorrowView: React.FC = () => {
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inputValue.trim()) return;
-        await addTodo(inputValue.trim(), tomorrowStr);
+        await addTodo(inputValue.trim(), isDailyMode ? 'daily' : tomorrowStr);
         setInputValue('');
     };
 
@@ -38,7 +41,9 @@ export const TomorrowView: React.FC = () => {
             margin: '0 auto',
             padding: isMobile ? '1rem' : '2rem',
             paddingTop: isMobile ? '4rem' : '2rem',
-            minHeight: '100%'
+            minHeight: '100%',
+            position: 'relative',
+            zIndex: 1
         }}>
             {/* Artistic Header */}
             <header style={{ marginBottom: isMobile ? '2.5rem' : '4rem', position: 'relative' }}>
@@ -61,13 +66,15 @@ export const TomorrowView: React.FC = () => {
                             Planning Ahead
                         </h2>
                         <h1 style={{ fontSize: isMobile ? '1.8rem' : '2.5rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', margin: 0 }}>
-                            Tomorrow's Goals
+                            {isDailyMode ? 'Daily Habits' : "Scheduled Goals"}
                         </h1>
                     </div>
                 </motion.div>
 
                 <p style={{ color: 'var(--text-secondary)', fontSize: isMobile ? '0.95rem' : '1.1rem', maxWidth: '600px', lineHeight: 1.5 }}>
-                    Capture what you want to achieve tomorrow. These tasks will automatically move to your Dashboard when the day comes.
+                    {isDailyMode
+                        ? 'Set up todos that automatically repeat every day on your Dashboard.'
+                        : 'Capture what you want to achieve in the coming days. These todos will automatically move to your Dashboard when the scheduled date arrives.'}
                 </p>
             </header>
 
@@ -78,6 +85,22 @@ export const TomorrowView: React.FC = () => {
             }}>
                 {/* Planning Section */}
                 <section>
+                    {/* View Toggle */}
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', padding: '4px', background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)', borderRadius: '16px', width: 'fit-content' }}>
+                        <button
+                            onClick={() => setIsDailyMode(false)}
+                            style={{ padding: '0.6rem 1.25rem', borderRadius: '12px', border: 'none', background: !isDailyMode ? 'var(--accent-primary)' : 'transparent', color: !isDailyMode ? 'white' : 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: !isDailyMode ? '0 4px 12px rgba(168, 85, 247, 0.3)' : 'none' }}
+                        >
+                            <Coffee size={18} /> Upcoming
+                        </button>
+                        <button
+                            onClick={() => setIsDailyMode(true)}
+                            style={{ padding: '0.6rem 1.25rem', borderRadius: '12px', border: 'none', background: isDailyMode ? '#ec4899' : 'transparent', color: isDailyMode ? 'white' : 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: isDailyMode ? '0 4px 12px rgba(236, 72, 153, 0.3)' : 'none' }}
+                        >
+                            <Repeat size={18} /> Daily Loop
+                        </button>
+                    </div>
+
                     <motion.div
                         style={{ marginBottom: '2.5rem' }}
                         animate={{ scale: isFocused ? 1.02 : 1 }}
@@ -143,8 +166,8 @@ export const TomorrowView: React.FC = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <AnimatePresence mode="popLayout">
-                            {tomorrowTasks.length > 0 ? (
-                                tomorrowTasks.map((todo) => (
+                            {(isDailyMode ? dailyTasks : tomorrowTasks).length > 0 ? (
+                                (isDailyMode ? dailyTasks : tomorrowTasks).map((todo) => (
                                     <motion.div
                                         key={todo.id}
                                         layout
@@ -204,7 +227,7 @@ export const TomorrowView: React.FC = () => {
                                     color: 'var(--text-muted)',
                                     fontSize: isMobile ? '0.9rem' : '1rem'
                                 }}>
-                                    Your tomorrow is a blank canvas. Start planning!
+                                    {isDailyMode ? 'No daily repeating tasks yet. Set up a habit!' : 'Your tomorrow is a blank canvas. Start planning!'}
                                 </div>
                             )}
                         </AnimatePresence>
@@ -221,7 +244,14 @@ export const TomorrowView: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         {historyDates.length > 0 ? (
                             historyDates.map(dateStr => (
-                                <HistoryCard key={dateStr} dateStr={dateStr} tasks={getTodosByDate(dateStr)} isDark={isDark} isMobile={isMobile} />
+                                <HistoryCard
+                                    key={dateStr}
+                                    dateStr={dateStr}
+                                    tasks={getTodosByDate(dateStr)}
+                                    isDark={isDark}
+                                    isMobile={isMobile}
+                                    onDelete={() => deleteDateHistory(dateStr)}
+                                />
                             ))
                         ) : (
                             <div style={{ padding: '2rem', textAlign: 'center', border: '1px solid var(--border-subtle)', borderRadius: '20px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
@@ -235,7 +265,7 @@ export const TomorrowView: React.FC = () => {
     );
 };
 
-const HistoryCard: React.FC<{ dateStr: string; tasks: any[]; isDark: boolean; isMobile: boolean }> = ({ dateStr, tasks, isDark, isMobile }) => {
+const HistoryCard: React.FC<{ dateStr: string; tasks: any[]; isDark: boolean; isMobile: boolean; onDelete: () => void }> = ({ dateStr, tasks, isDark, isMobile, onDelete }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const completedCount = tasks.filter(t => t.completed).length;
     const date = parseISO(dateStr);
@@ -262,8 +292,16 @@ const HistoryCard: React.FC<{ dateStr: string; tasks: any[]; isDark: boolean; is
                         {format(date, 'MMM d, yyyy')}
                     </div>
                 </div>
-                <div style={{ fontSize: isMobile ? '0.7rem' : '0.8rem', padding: '0.2rem 0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                    {completedCount}/{tasks.length} {isMobile ? '' : 'Done'}
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <div style={{ fontSize: isMobile ? '0.7rem' : '0.8rem', padding: '0.2rem 0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                        {completedCount}/{tasks.length} {isMobile ? '' : 'Done'}
+                    </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); if (confirm('Delete this day\'s history?')) onDelete(); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}
+                    >
+                        <Trash2 size={16} />
+                    </button>
                 </div>
             </div>
 

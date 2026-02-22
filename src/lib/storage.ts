@@ -2,6 +2,7 @@ import { openDB, type DBSchema } from 'idb';
 import type { Note, Todo } from '../types';
 import { Preferences } from '@capacitor/preferences';
 import { format } from 'date-fns';
+import { WidgetBridge } from '../features/WidgetBridge';
 
 interface TruNotesDB extends DBSchema {
     notes: {
@@ -108,6 +109,18 @@ export const storage = {
         this.notifyListeners();
     },
 
+    async saveTodos(todos: Todo[]): Promise<void> {
+        const db = await dbPromise;
+        const tx = db.transaction('todos', 'readwrite');
+        const store = tx.objectStore('todos');
+        const now = Date.now();
+        for (const todo of todos) {
+            await store.put({ ...todo, updatedAt: todo.updatedAt || now });
+        }
+        await tx.done;
+        this.notifyListeners();
+    },
+
     async deleteTodo(id: string): Promise<void> {
         const db = await dbPromise;
         const todo = await db.get('todos', id);
@@ -117,6 +130,24 @@ export const storage = {
             await db.put('todos', todo);
             this.notifyListeners();
         }
+    },
+
+    async deleteTodosByDate(date: string): Promise<void> {
+        const db = await dbPromise;
+        const tx = db.transaction('todos', 'readwrite');
+        const store = tx.objectStore('todos');
+        const index = store.index('by-target-date');
+        const todos = await index.getAll(date);
+        const now = Date.now();
+        for (const todo of todos) {
+            if (!todo.deleted) {
+                todo.deleted = true;
+                todo.updatedAt = now;
+                await store.put(todo);
+            }
+        }
+        await tx.done;
+        this.notifyListeners();
     },
 
     async getHourlyLog(date: string) {
@@ -327,6 +358,14 @@ export const storage = {
             }
 
             console.log("storage: Widget data updated - ", pendingTodos.length, "pending tasks");
+
+            // Trigger native widget refresh broadcast (Android only)
+            try {
+                await WidgetBridge.refreshWidgets();
+                console.log("storage: Native widgets refreshed");
+            } catch (e) {
+                // Expected to fail on web/desktop — only works on Android
+            }
         } catch (e) {
             console.warn('Widget sync failed:', e);
         }

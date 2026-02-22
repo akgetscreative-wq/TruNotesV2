@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, Cpu, MessageSquare, Settings, Download, Trash2, Play, Pause, Square, Bot, AlertCircle, Clock, Plus, X } from 'lucide-react';
+import { Sparkles, Cpu, MessageSquare, Settings, Download, Trash2, Play, Pause, Square, Bot, AlertCircle, Clock, Plus, X } from 'lucide-react';
 import { useThemeContext } from '../../context/ThemeContext';
 import { useSettings } from '../../context/SettingsContext';
 import AIBridge from './AIBridge';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useNotes } from '../../hooks/useNotes';
 import { useTodos } from '../../hooks/useTodos';
+import { useHourlyLog } from '../../hooks/useHourlyLog';
 import { Preferences } from '@capacitor/preferences';
 import { storage } from '../../lib/storage';
 import type { Message, ChatSession } from '../../types';
@@ -19,6 +22,7 @@ interface Model {
     progress?: number;
     url?: string;
     actualPath?: string;
+    downloadId?: number;
 }
 
 // In-memory cache to persist chat during navigation but clear on app restart (Cold Start)
@@ -83,8 +87,10 @@ export const AIView: React.FC = () => {
     const activeSessionRef = useRef<string | null>(null);
     const [persistentMemories, setPersistentMemories] = useState<string[]>([]);
 
-    const { notes, addNote } = useNotes();
-    const { todos, addTodo, toggleTodo } = useTodos();
+    const { notes, addNote, updateNote, deleteNote } = useNotes();
+    const { todos, addTodo, toggleTodo, deleteTodo } = useTodos();
+    const today = new Date().toISOString().split('T')[0];
+    const { logs: hourlyLogs, saveLog: saveHourlyLog } = useHourlyLog(today);
     const getRelevantContext = (userInput: string) => {
         if (aiConfig.directMode) return "";
 
@@ -96,31 +102,77 @@ export const AIView: React.FC = () => {
             let historicalNotes = "";
             let historicalTodos = "";
 
-            // Simple Pattern Detection for Dates
-            const dateMatch = lowerInput.match(/(\d{1,2}) (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/) ||
-                lowerInput.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec) (\d{1,2})/);
+            const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+            const monthAbbrs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
             let targetDateStart: number | null = null;
             let targetDateEnd: number | null = null;
+
+            const devContextScript = localStorage.getItem('AI_DEV_CONTEXT_SCRIPT');
+            if (devContextScript) {
+                // Compile the JS code dynamically to allow overriding context search mechanics
+                // NOTE: Using Function constructor is unsafe if accepting outside input, but this is a personal app dev mode, so it's acceptable.
+                try {
+                    const generatorFn = new Function(
+                        'input', 'notes', 'todos', 'hourlyLogs', 'persistentMemories', 'now', 'timeStr',
+                        devContextScript
+                    );
+                    return generatorFn(userInput, notes, todos, hourlyLogs, persistentMemories, now, timeStr);
+                } catch (devCodeErr) {
+                    console.error("AI Dev Context Script Compilation Failed. Falling back to default logic:", devCodeErr);
+                }
+            }
 
             if (lowerInput.includes('yesterday')) {
                 const d = new Date(); d.setDate(d.getDate() - 1);
                 targetDateStart = new Date(d.setHours(0, 0, 0, 0)).getTime();
                 targetDateEnd = new Date(d.setHours(23, 59, 59, 999)).getTime();
                 historicalTitle = "YESTERDAY'S RECORDS";
-            } else if (dateMatch) {
-                const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                const monthStr = dateMatch[1].length > 2 ? dateMatch[1] : dateMatch[2];
-                const day = parseInt(dateMatch[1].length <= 2 ? dateMatch[1] : dateMatch[2]);
-                const monthIdx = months.findIndex(m => monthStr.startsWith(m));
+            } else if (lowerInput.includes('today')) {
+                const d = new Date();
+                targetDateStart = new Date(d.setHours(0, 0, 0, 0)).getTime();
+                targetDateEnd = new Date(d.setHours(23, 59, 59, 999)).getTime();
+                historicalTitle = "TODAY'S RECORDS";
+            } else if (lowerInput.includes('last week')) {
+                const end = new Date();
+                const start = new Date(); start.setDate(start.getDate() - 7);
+                targetDateStart = new Date(start.setHours(0, 0, 0, 0)).getTime();
+                targetDateEnd = new Date(end.setHours(23, 59, 59, 999)).getTime();
+                historicalTitle = "LAST WEEK'S RECORDS";
+            } else {
+                let monthIdx = -1;
+                let day = NaN;
+                for (let i = 0; i < 12; i++) {
+                    const name = monthNames[i];
+                    const abbr = monthAbbrs[i];
+                    if (lowerInput.includes(name) || lowerInput.match(new RegExp(`\\b${abbr}\\b`))) {
+                        monthIdx = i;
+                        break;
+                    }
+                }
 
                 if (monthIdx !== -1) {
+                    const name = monthNames[monthIdx];
+                    const abbr = monthAbbrs[monthIdx];
+                    const dayMatch = lowerInput.match(new RegExp(`(?:${name}|${abbr})\\s*(\\d{1,2})\\b`)) || lowerInput.match(new RegExp(`\\b(\\d{1,2})\\s*(?:${name}|${abbr})`));
+                    if (dayMatch) {
+                        // dayMatch[1] or dayMatch[2] will be the day, depending on regex group matched.
+                        day = parseInt(dayMatch[1] || dayMatch[2]);
+                    }
+
                     const d = new Date();
                     d.setMonth(monthIdx);
-                    d.setDate(day);
-                    targetDateStart = new Date(d.setHours(0, 0, 0, 0)).getTime();
-                    targetDateEnd = new Date(d.setHours(23, 59, 59, 999)).getTime();
-                    historicalTitle = `RECORDS FOR ${monthStr.toUpperCase()} ${day}`;
+                    if (!isNaN(day)) {
+                        d.setDate(day);
+                        targetDateStart = new Date(d.setHours(0, 0, 0, 0)).getTime();
+                        targetDateEnd = new Date(d.setHours(23, 59, 59, 999)).getTime();
+                        historicalTitle = `RECORDS FOR ${monthNames[monthIdx].toUpperCase()} ${day}`;
+                    } else {
+                        const currentYear = d.getFullYear();
+                        targetDateStart = new Date(currentYear, monthIdx, 1, 0, 0, 0, 0).getTime();
+                        targetDateEnd = new Date(currentYear, monthIdx + 1, 0, 23, 59, 59, 999).getTime();
+                        historicalTitle = `RECORDS FOR ALL OF ${monthNames[monthIdx].toUpperCase()}`;
+                    }
                 }
             }
 
@@ -130,17 +182,38 @@ export const AIView: React.FC = () => {
                 const hTodos = todos.filter(t => !t.deleted && t.createdAt >= targetDateStart! && t.createdAt <= targetDateEnd!);
 
                 if (hNotes.length > 0) {
-                    historicalNotes = hNotes.slice(0, 10).map(n => {
-                        // Strip HTML and Base64 images
-                        const clean = n.content
-                            .replace(/<[^>]*>/g, '') // Strip HTML
+                    historicalNotes = hNotes.slice(0, 25).map(n => {
+                        let textContent = '';
+                        try {
+                            if (n.content && n.content.trim().startsWith('{')) {
+                                const parsed = JSON.parse(n.content);
+                                if (parsed._journalV2) {
+                                    const mainPart = parsed.mainContent || '';
+                                    const blockPart = (parsed.textBlocks || []).map((b: any) => b.content).join(' ');
+                                    textContent = mainPart + ' ' + blockPart;
+                                } else {
+                                    textContent = n.content;
+                                }
+                            } else {
+                                textContent = n.content || '';
+                            }
+                        } catch (e) {
+                            textContent = n.content || '';
+                        }
+
+                        const clean = textContent
+                            .replace(/<[^>]*>/g, ' ') // Strip HTML
+                            .replace(/&nbsp;/g, ' ')
                             .replace(/data:image\/[^;]+;base64,[^\s"']+/g, '[IMAGE]') // Strip Base64
-                            .substring(0, 300)
-                            .replace(/\n/g, ' ');
-                        return `> ${n.title}: ${clean}`;
+                            .replace(/\s+/g, ' ') // Compress whitespace
+                            .substring(0, 400)
+                            .trim();
+
+                        const dateString = new Date(n.createdAt).toLocaleDateString();
+                        return `> [${dateString}] ${n.title || 'Untitled'}: ${clean}...`;
                     }).join('\n');
                 }
-                if (hTodos.length > 0) historicalTodos = hTodos.slice(0, 10).map(t => `- ${t.text} (${t.completed ? 'Done' : 'todo'})`).join('\n');
+                if (hTodos.length > 0) historicalTodos = hTodos.slice(0, 15).map(t => `- [${new Date(t.createdAt).toLocaleDateString()}] ${t.text} (${t.completed ? 'Done' : 'todo'})`).join('\n');
             }
 
             const isDeepScan = lowerInput.includes('history') || lowerInput.includes('all notes') || lowerInput.includes('everything') || lowerInput.includes('search');
@@ -162,12 +235,33 @@ export const AIView: React.FC = () => {
 
             const recentNotesStr = recentNoteResults
                 .map(n => {
-                    const clean = n.content
-                        .replace(/<[^>]*>/g, '') // Strip HTML
+                    let textContent = '';
+                    try {
+                        if (n.content && n.content.trim().startsWith('{')) {
+                            const parsed = JSON.parse(n.content);
+                            if (parsed._journalV2) {
+                                const mainPart = parsed.mainContent || '';
+                                const blockPart = (parsed.textBlocks || []).map((b: any) => b.content).join(' ');
+                                textContent = mainPart + ' ' + blockPart;
+                            } else {
+                                textContent = n.content;
+                            }
+                        } else {
+                            textContent = n.content || '';
+                        }
+                    } catch (e) {
+                        textContent = n.content || '';
+                    }
+
+                    const clean = textContent
+                        .replace(/<[^>]*>/g, ' ') // Strip HTML
+                        .replace(/&nbsp;/g, ' ')
                         .replace(/data:image\/[^;]+;base64,[^\s"']+/g, '[IMAGE]') // Strip Base64
-                        .substring(0, 60)
+                        .replace(/\s+/g, ' ') // Compress whitespace
+                        .substring(0, 500)
                         .trim();
-                    return `${n.title}: ${clean}`;
+
+                    return `- ${n.title || 'Untitled'}: ${clean}...`;
                 })
                 .join('\n');
 
@@ -180,18 +274,35 @@ export const AIView: React.FC = () => {
                 contextStr += `USER MEMORIES:\n${persistentMemories.map(m => `- ${m}`).join('\n')}\n\n`;
             }
 
-            if (recentNotesStr) contextStr += `LATEST 10 NOTES:\n${recentNotesStr}\n\n`;
+            if (recentNotesStr && !historicalTitle) {
+                contextStr += `LATEST NOTES:\n${recentNotesStr}\n\n`;
+            } else if (recentNotesStr) {
+                // If the user requested a specific history, briefly provide recent notes just in case.
+                contextStr += `RECENT NOTES (For Context):\n${recentNotesStr}\n\n`;
+            }
 
             if (historicalTitle) {
                 contextStr += `--- ${historicalTitle} ---\n`;
-                if (historicalNotes) contextStr += `${historicalNotes}\n`;
+                if (historicalNotes) {
+                    contextStr += `${historicalNotes}\n`;
+                } else {
+                    contextStr += `No notes found in this period.\n`;
+                }
                 if (historicalTodos) contextStr += `${historicalTodos}\n`;
                 contextStr += `\n`;
             }
 
             if (recentTodosStr) contextStr += `RECENT TASKS (3 Days):\n${recentTodosStr}\n\n`;
 
-            // Date is dynamic (changes daily), keep it at the end of grounding to avoid invalidating the notes prefix!
+            // Include today's hourly log entries
+            const logEntries = Object.entries(hourlyLogs)
+                .filter(([_, v]) => v && v.trim())
+                .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                .map(([h, v]) => `${String(h).padStart(2, '0')}:00 — ${v}`)
+                .join('\n');
+            if (logEntries) contextStr += `TODAY'S HOURLY LOG:\n${logEntries}\n\n`;
+
+            // Date is dynamic (changes daily), keep it at the end
             contextStr += `[SESSION_INFO]\nDate: ${timeStr}\n[/SESSION_INFO]`;
 
             return contextStr;
@@ -236,13 +347,17 @@ export const AIView: React.FC = () => {
     const currentBgDarkness = theme === 'dark' ? bgDarknessDark : bgDarknessLight;
     const currentBlur = theme === 'dark' ? bgBlurDark : bgBlurLight;
 
+    // Track if user is manually scrolling
+    const isUserScrolling = useRef(false);
+
     useEffect(() => {
         const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-            if (messagesEndRef.current) {
+            if (messagesEndRef.current && !isUserScrolling.current) {
                 messagesEndRef.current.scrollIntoView({ behavior });
             }
         };
 
+        // Scroll only if user hasn't scrolled up
         scrollToBottom('auto');
 
         // Listen for window resize (keyboard opening/closing)
@@ -250,6 +365,14 @@ export const AIView: React.FC = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [chatMessages]);
+
+    // Detect manual scrolling
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        // If user is not at the bottom (within 50px), they are "scrolling up"
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+        isUserScrolling.current = !isAtBottom;
+    };
 
     const handleLoadModel = async (model: Model) => {
         try {
@@ -635,27 +758,30 @@ export const AIView: React.FC = () => {
             return p + `<|im_start|>user\n${userMsg}<|im_end|>\n<|im_start|>assistant\n`;
         }
 
-        const responseInstruction = aiConfig.responseType === 'brief'
-            ? "Reply briefly."
+        const responseStyle = aiConfig.responseType === 'brief'
+            ? "Keep replies short and punchy — 1-3 sentences max."
             : aiConfig.responseType === 'detailed'
-                ? "Reply in detail using Markdown."
-                : "Reply balanced.";
+                ? "Give detailed, well-structured replies using bullet points and headers when helpful."
+                : "Reply conversationally — concise but complete.";
 
-        const memoryInstruction = " Remember: [SAVEMEM: info].";
-        const appControlInstruction = ' Cmds: [CREATE_TASK: "T"], [COMPLETE_TASK: "T"], [CREATE_NOTE: title="T", content="C"].';
+        const defaultAppControlInstruction = `\nYou have full control over the user's TruNotes app. When they ask you to manage anything, use these commands:\n- [CREATE_TASK: "task text"] — create a task for today\n- [CREATE_TASK: "task text" date="YYYY-MM-DD"] — create for a specific date\n- [COMPLETE_TASK: "task text"] — mark a task as done\n- [DELETE_TASK: "task text"] — delete a task\n- [CREATE_NOTE: title="Title" content="Content"] — create a new note\n- [EDIT_NOTE: title="Title" content="New content"] — edit a note\n- [DELETE_NOTE: "Title"] — delete a note\n- [TOGGLE_FAVORITE: "Title"] — toggle favorite on a note\n- [LOG_HOUR: hour=HH content="What happened"] — log an entry for a specific hour (0-23)\n- [SAVEMEM: "fact"] — remember something important about the user\nWhen asked to add, create, edit, delete, log, or manage anything, ALWAYS use these commands and briefly confirm what you did.`;
+
+        const appControlInstruction = localStorage.getItem('AI_DEV_APP_CONTROL') || defaultAppControlInstruction;
 
         const now = new Date();
         const timeStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-        // STATIC PREFIX (Identity) - Always Cached
-        const staticPrefix = `Helpful assistant.${responseInstruction}${memoryInstruction}${appControlInstruction}`;
+        // Akitsu personality + instructions
+        const defaultIdentity = `You are Akitsu — the user's sweet, capable personal AI companion built into TruNotes. You're warm, cheerful, and genuinely care about helping. You speak naturally like a close friend who happens to be incredibly organized and smart. {responseStyle} You have full access to the user's notes, tasks, and hourly logs. You can create, edit, delete, and manage everything in the app. Proactively offer help when you notice things. Be delightful.{appControlInstruction}`;
+        const rawIdentity = localStorage.getItem('AI_DEV_IDENTITY') || defaultIdentity;
+        const identity = rawIdentity.replace('{responseStyle}', responseStyle).replace('{appControlInstruction}', appControlInstruction);
 
-        // SEMI-STATIC GROUNDING (Date + Facts) - Cached across the whole chat session
-        const groundingBlock = `[CONTEXT GROUNDING]\nDate: ${timeStr}\n${context || "No current notes."}\n[/CONTEXT_GROUNDING]`;
+        // Context grounding
+        const groundingBlock = `\n[TODAY: ${timeStr}]\n${context || "No notes or tasks yet."}\n`;
 
         const systemPrompt = aiConfig.customInstructions
-            ? `${aiConfig.customInstructions}\n\n${staticPrefix}\n\n${groundingBlock}`
-            : `${staticPrefix}\n\n${groundingBlock}`;
+            ? `${aiConfig.customInstructions}\n\n${identity}\n${groundingBlock}`
+            : `${identity}\n${groundingBlock}`;
 
         // Chat History - Evaluated incrementally (Speed!)
         const recentHistory = history.slice(-30);
@@ -740,6 +866,7 @@ export const AIView: React.FC = () => {
         setInputText('');
         setIsGenerating(true);
         tokenCountRef.current = 0; // Reset for new message
+        tokenBufferRef.current = ""; // CRITICAL FIX: Clear buffer of any stopped/stale tokens
         generationStartTimeRef.current = Date.now(); // Initial start
 
         // Local variable to ensure we use the correct session ID in this turn (handles new session creation)
@@ -791,6 +918,219 @@ export const AIView: React.FC = () => {
                 prompt: prompt,
                 ...genParams
             });
+            // 1. Flush any remaining tokens in the buffer
+            let finalBotText = "";
+            if (tokenBufferRef.current) {
+                const remaining = tokenBufferRef.current;
+                tokenBufferRef.current = "";
+                setChatMessages(prev => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last && last.sender === 'bot') {
+                        last.text += remaining;
+                        finalBotText = last.text;
+                    }
+                    return updated;
+                });
+            } else {
+                // If no buffer, get current text from state
+                setChatMessages(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last && last.sender === 'bot') finalBotText = last.text;
+                    return prev;
+                });
+            }
+
+            // Small delay to ensure state update for finalBotText is captured if needed, 
+            // though the functional setter above is synchronous in the closure.
+
+            // 2. Process App Control Commands (Tasks/Notes/Memories)
+            if (finalBotText) {
+                let cleanedText = finalBotText;
+
+                const devActionScript = localStorage.getItem('AI_DEV_ACTION_SCRIPT');
+                if (devActionScript) {
+                    try {
+                        const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+                        const actionFn = new AsyncFunction(
+                            'finalBotText', 'todos', 'notes', 'persistentMemories',
+                            'addTodo', 'toggleTodo', 'deleteTodo', 'addNote', 'updateNote', 'deleteNote',
+                            'setPersistentMemories', 'saveHourlyLog', 'Preferences', 'window',
+                            devActionScript
+                        );
+
+                        cleanedText = await actionFn(
+                            finalBotText, todos, notes, persistentMemories,
+                            addTodo, toggleTodo, deleteTodo, addNote, updateNote, deleteNote,
+                            setPersistentMemories, saveHourlyLog, Preferences, window
+                        );
+                    } catch (actionErr) {
+                        console.error('AI Dev Action Script Compilation/Execution Failed:', actionErr);
+                    }
+                } else {
+                    // --- BEGIN DEFAULT PARSER ---
+                    let tm;
+
+                    // [SAVEMEM]
+                    const memMatch = cleanedText.match(/\[SAVEMEM:\s*(.*?)\]/);
+                    if (memMatch && memMatch[1]) {
+                        const fact = memMatch[1].trim();
+                        console.log("AI Command: Saving memory ->", fact);
+                        setPersistentMemories(m => {
+                            if (m.includes(fact)) return m;
+                            const updated = [...m, fact];
+                            Preferences.set({ key: 'ai_persistent_memories', value: JSON.stringify(updated) });
+                            return updated;
+                        });
+                        cleanedText = cleanedText.replace(/\[SAVEMEM:.*?\]/g, '').trim();
+                    }
+
+                    // [CREATE_TASK] with optional date
+                    const taskRegex = /\[CREATE_TASK:\s*["'](.*?)["'](?:\s*date=["'](\d{4}-\d{2}-\d{2})["'])?\]/gi;
+                    while ((tm = taskRegex.exec(finalBotText)) !== null) {
+                        if (tm[1]) {
+                            const dateStr = tm[2] || new Date().toISOString().split('T')[0];
+                            console.log("AI Command: Creating task ->", tm[1], "for date:", dateStr);
+                            await addTodo(tm[1], dateStr);
+                            if ((window as any).showToast) (window as any).showToast(`Task created: ${tm[1]}`, 'success');
+                            cleanedText = cleanedText.replace(tm[0], '').trim();
+                        }
+                    }
+
+                    // [COMPLETE_TASK]
+                    const completeRegex = /\[COMPLETE_TASK:\s*["'](.*?)["']\]/gi;
+                    while ((tm = completeRegex.exec(finalBotText)) !== null) {
+                        if (tm[1]) {
+                            const target = tm[1].toLowerCase();
+                            console.log("AI Command: Completing task ->", target);
+                            const todo = todos.find(t => t.text.toLowerCase().includes(target) && !t.completed);
+                            if (todo) {
+                                await toggleTodo(todo);
+                                if ((window as any).showToast) (window as any).showToast(`Task completed: ${todo.text}`, 'success');
+                            }
+                            cleanedText = cleanedText.replace(tm[0], '').trim();
+                        }
+                    }
+
+                    // [DELETE_TASK]
+                    const deleteTaskRegex = /\[DELETE_TASK:\s*["'](.*?)["']\]/gi;
+                    while ((tm = deleteTaskRegex.exec(finalBotText)) !== null) {
+                        if (tm[1]) {
+                            const target = tm[1].toLowerCase();
+                            console.log("AI Command: Deleting task ->", target);
+                            const todo = todos.find(t => t.text.toLowerCase().includes(target));
+                            if (todo) {
+                                await deleteTodo(todo.id);
+                                if ((window as any).showToast) (window as any).showToast(`Task deleted: ${todo.text}`, 'success');
+                            }
+                            cleanedText = cleanedText.replace(tm[0], '').trim();
+                        }
+                    }
+
+                    // [CREATE_NOTE]
+                    const noteRegex = /\[CREATE_NOTE:\s*title=["'](.*?)["'],?\s*content=["'](.*?)["']\]/gis;
+                    while ((tm = noteRegex.exec(finalBotText)) !== null) {
+                        if (tm[1] && tm[2]) {
+                            console.log("AI Command: Creating note ->", tm[1]);
+                            await addNote(tm[1], tm[2]);
+                            if ((window as any).showToast) (window as any).showToast(`Note created: ${tm[1]}`, 'success');
+                            cleanedText = cleanedText.replace(tm[0], '').trim();
+                        }
+                    }
+
+                    // [EDIT_NOTE]
+                    const editNoteRegex = /\[EDIT_NOTE:\s*title=["'](.*?)["'],?\s*content=["'](.*?)["']\]/gis;
+                    while ((tm = editNoteRegex.exec(finalBotText)) !== null) {
+                        if (tm[1] && tm[2]) {
+                            const target = tm[1].toLowerCase();
+                            console.log("AI Command: Editing note ->", target);
+                            const note = notes.find(n => !n.deleted && n.title.toLowerCase().includes(target));
+                            if (note) {
+                                await updateNote(note.id, { content: tm[2] });
+                                if ((window as any).showToast) (window as any).showToast(`Note updated: ${note.title}`, 'success');
+                            }
+                            cleanedText = cleanedText.replace(tm[0], '').trim();
+                        }
+                    }
+
+                    // [DELETE_NOTE]
+                    const deleteNoteRegex = /\[DELETE_NOTE:\s*["'](.*?)["']\]/gi;
+                    while ((tm = deleteNoteRegex.exec(finalBotText)) !== null) {
+                        if (tm[1]) {
+                            const target = tm[1].toLowerCase();
+                            console.log("AI Command: Deleting note ->", target);
+                            const note = notes.find(n => !n.deleted && n.title.toLowerCase().includes(target));
+                            if (note) {
+                                await deleteNote(note.id);
+                                if ((window as any).showToast) (window as any).showToast(`Note deleted: ${note.title}`, 'success');
+                            }
+                            cleanedText = cleanedText.replace(tm[0], '').trim();
+                        }
+                    }
+
+                    // [TOGGLE_FAVORITE]
+                    const favRegex = /\[TOGGLE_FAVORITE:\s*["'](.*?)["']\]/gi;
+                    while ((tm = favRegex.exec(finalBotText)) !== null) {
+                        if (tm[1]) {
+                            const target = tm[1].toLowerCase();
+                            console.log("AI Command: Toggling favorite ->", target);
+                            const note = notes.find(n => !n.deleted && n.title.toLowerCase().includes(target));
+                            if (note) {
+                                await updateNote(note.id, { isFavorite: !note.isFavorite });
+                                if ((window as any).showToast) (window as any).showToast(`${note.isFavorite ? 'Unfavorited' : 'Favorited'}: ${note.title}`, 'success');
+                            }
+                            cleanedText = cleanedText.replace(tm[0], '').trim();
+                        }
+                    }
+
+                    // [LOG_HOUR]
+                    const logHourRegex = /\[LOG_HOUR:\s*hour=(\d{1,2})\s+content=["'](.*?)["']\]/gi;
+                    while ((tm = logHourRegex.exec(finalBotText)) !== null) {
+                        const hour = parseInt(tm[1]);
+                        const content = tm[2];
+                        if (!isNaN(hour) && hour >= 0 && hour <= 23 && content) {
+                            console.log("AI Command: Logging hour", hour, "->", content);
+                            await saveHourlyLog(hour, content);
+                            if ((window as any).showToast) (window as any).showToast(`Logged ${String(hour).padStart(2, '0')}:00 — ${content}`, 'success');
+                        }
+                        cleanedText = cleanedText.replace(tm[0], '').trim();
+                    }
+
+                    // --- END DEFAULT PARSER ---
+                }
+
+                // Final cleanup: Update chat message to remove the technical tags
+                if (cleanedText !== finalBotText) {
+                    setChatMessages(prev => {
+                        const updated = [...prev];
+                        if (updated.length > 0) {
+                            const last = updated[updated.length - 1];
+                            if (last.sender === 'bot') last.text = cleanedText;
+                        }
+                        // Trigger session sync with DEFINITIVE messages
+                        setSessions(currS => {
+                            const updatedSessions = currS.map(s =>
+                                s.id === turnSessionId ? { ...s, messages: updated, lastModified: Date.now() } : s
+                            );
+                            persistSessions(updatedSessions);
+                            return updatedSessions;
+                        });
+                        return updated;
+                    });
+                } else {
+                    // Even if no cleanup, sync sessions to save the bot's raw text
+                    setChatMessages(prev => {
+                        setSessions(currS => {
+                            const updatedSessions = currS.map(s =>
+                                s.id === turnSessionId ? { ...s, messages: prev, lastModified: Date.now() } : s
+                            );
+                            persistSessions(updatedSessions);
+                            return updatedSessions;
+                        });
+                        return prev;
+                    });
+                }
+            }
         } catch (err) {
             setError("Generation failed: " + err);
             setIsGenerating(false);
@@ -837,7 +1177,8 @@ export const AIView: React.FC = () => {
                         } else if (progressRes.status === 16) { // STATUS_FAILED
                             const errorMsg = getDownloadErrorReason(progressRes.reason);
                             setError(`Download failed for ${model.name}: ${errorMsg}`);
-                            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle', progress: 0 } : m));
+                            if ((window as any).showToast) (window as any).showToast(`Fetch failed: ${model.name} ❌`, 'error');
+                            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle', progress: 0, downloadId: undefined } : m));
                         } else {
                             setModels(prev => prev.map(m => m.id === model.id ? { ...m, progress: progressRes.progress } : m));
                         }
@@ -870,33 +1211,32 @@ export const AIView: React.FC = () => {
         try {
             console.log("Setting status to downloading...");
             setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloading', progress: 0 } : m));
+            if ((window as any).showToast) (window as any).showToast(`Starting fetch for ${model.name}... 🚀`, 'success');
 
-            console.log("Calling AIBridge.downloadModel with:", model.url);
             const res = await AIBridge.downloadModel({ url: model.url, filename: `${model.id}.gguf` });
-            console.log("AIBridge.downloadModel returned:", res);
-
             setModels(prev => prev.map(m => m.id === model.id ? { ...m, downloadId: res.downloadId } : m));
-            // alert(`Download started! ID: ${res.downloadId}`);
         } catch (err: any) {
             console.error("Download error:", err);
-            setError(`Download failed: ${err.message || err}`);
-            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle' } : m));
+            setError(`Aw, I couldn't grab that: ${err.message || err} 📶`);
+            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle', progress: 0, downloadId: undefined } : m));
         }
     };
 
     const handleDelete = async (model: Model) => {
         try {
-            console.log("Deleting model:", model.id, "DownloadID:", model.downloadId);
+            const isCancelling = model.status === 'downloading';
             await AIBridge.deleteModel({
                 filename: `${model.id}.gguf`,
                 downloadId: model.downloadId
             });
             setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle', progress: 0, downloadId: undefined } : m));
-            if (loadedModel === model.name) {
-                setLoadedModel(null);
-            }
+
+            const msg = isCancelling ? "Download stopped! No worries. ✨" : "Model removed successfully! 🧹";
+            if ((window as any).showToast) (window as any).showToast(msg, 'success');
+
+            if (loadedModel === model.name) setLoadedModel(null);
         } catch (err: any) {
-            setError(`Delete failed: ${err.message || err}`);
+            setError(`Cleanup failed: ${err.message || err}`);
         }
     };
 
@@ -953,7 +1293,8 @@ export const AIView: React.FC = () => {
                 left: 0,
                 color: 'var(--text-primary)',
                 background: 'var(--bg-primary)',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                zIndex: 1
             }}
         >
             <div style={{
@@ -972,10 +1313,10 @@ export const AIView: React.FC = () => {
                     gap: '0.5rem'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
-                        <Brain className="text-accent" size={isMobile ? 22 : 32} />
+                        <Sparkles className="text-pink-gradient" size={isMobile ? 22 : 32} />
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <h1 style={{ fontSize: isMobile ? '1.4rem' : '2.2rem', fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>Tru Assist</h1>
+                                <h1 className="text-pink-gradient" style={{ fontSize: isMobile ? '1.4rem' : '2.2rem', fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>Akitsu</h1>
                                 <button
                                     onClick={handleNewChat}
                                     style={{
@@ -1027,6 +1368,7 @@ export const AIView: React.FC = () => {
                             {/* Messages Container */}
                             <div
                                 ref={scrollRef}
+                                onScroll={handleScroll}
                                 style={{
                                     flex: 1,
                                     overflowY: 'auto',
@@ -1054,12 +1396,12 @@ export const AIView: React.FC = () => {
                                                 <Bot size={50} color="white" />
                                             </div>
                                             <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>
-                                                {models.some(m => m.status === 'loading') ? 'Initializing Brain...' : (loadedModel ? `Chatting with ${loadedModel}` : 'AI Assist Offline')}
+                                                {models.some(m => m.status === 'loading') ? 'Waking up Akitsu...' : (loadedModel ? `Akitsu is ready` : 'Akitsu is Offline')}
                                             </h3>
                                             <p style={{ opacity: 0.7 }}>
                                                 {models.some(m => m.status === 'loading')
                                                     ? `Loading ${models.find(m => m.status === 'loading')?.name}... Please wait.`
-                                                    : (loadedModel ? 'Experience AI with a premium, sleek interface. Generating the first response may take a moment.' : 'Select a model in the "Models" tab to begin.')}
+                                                    : (loadedModel ? 'Hey! Ask me anything about your notes, tasks, or just chat.' : 'Load a model in the "Models" tab to wake me up.')}
                                             </p>
                                         </div>
                                     </div>
@@ -1089,8 +1431,10 @@ export const AIView: React.FC = () => {
                                             >
                                                 <div style={{
                                                     background: msg.sender === 'user'
-                                                        ? 'linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)'
-                                                        : (theme === 'dark' ? '#262626' : '#EFEFEF'),
+                                                        ? 'linear-gradient(135deg, #0ea5e9, #22c55e)'
+                                                        : (theme === 'dark' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.8)'),
+                                                    backdropFilter: msg.sender === 'user' ? 'none' : 'blur(12px)',
+                                                    border: msg.sender === 'user' ? 'none' : `1px solid ${theme === 'dark' ? 'rgba(14, 165, 233, 0.2)' : 'rgba(14, 165, 233, 0.3)'}`,
                                                     color: msg.sender === 'user' ? 'white' : 'var(--text-primary)',
                                                     padding: '10px 16px',
                                                     borderRadius: msg.sender === 'user'
@@ -1101,9 +1445,60 @@ export const AIView: React.FC = () => {
                                                     whiteSpace: 'pre-wrap',
                                                     overflowWrap: 'anywhere',
                                                     wordBreak: 'break-word',
-                                                    boxShadow: msg.sender === 'user' ? '0 4px 15px rgba(220, 39, 67, 0.2)' : 'none'
+                                                    boxShadow: msg.sender === 'user' ? '0 4px 15px rgba(14, 165, 233, 0.3)' : (theme === 'dark' ? '0 4px 20px -5px rgba(0,0,0,0.4)' : '0 4px 20px -5px rgba(0,0,0,0.05)')
                                                 }}>
-                                                    {msg.text}
+                                                    {msg.sender === 'user' ? (
+                                                        <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
+                                                    ) : (
+                                                        <div className="markdown-body">
+                                                            <ReactMarkdown
+                                                                remarkPlugins={[remarkGfm]}
+                                                                components={{
+                                                                    table: ({ node, ...props }) => (
+                                                                        <div style={{ overflowX: 'auto', margin: '1em 0' }}>
+                                                                            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.9em' }} {...props} />
+                                                                        </div>
+                                                                    ),
+                                                                    th: ({ node, ...props }) => (
+                                                                        <th style={{ border: '1px solid var(--border-subtle)', padding: '6px 10px', background: 'rgba(0,0,0,0.1)' }} {...props} />
+                                                                    ),
+                                                                    td: ({ node, ...props }) => (
+                                                                        <td style={{ border: '1px solid var(--border-subtle)', padding: '6px 10px' }} {...props} />
+                                                                    ),
+                                                                    p: ({ node, ...props }) => (
+                                                                        <p style={{ margin: '0.5em 0' }} {...props} />
+                                                                    ),
+                                                                    ul: ({ node, ...props }) => (
+                                                                        <ul style={{ paddingLeft: '1.5em', margin: '0.5em 0' }} {...props} />
+                                                                    ),
+                                                                    ol: ({ node, ...props }) => (
+                                                                        <ol style={{ paddingLeft: '1.5em', margin: '0.5em 0' }} {...props} />
+                                                                    ),
+                                                                    code: ({ node, className, children, ...props }) => {
+                                                                        const match = /language-(\w+)/.exec(className || '')
+                                                                        return !match ? (
+                                                                            <code style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 4px', borderRadius: '4px', fontSize: '0.85em' }} {...props}>
+                                                                                {children}
+                                                                            </code>
+                                                                        ) : (
+                                                                            <div style={{ margin: '1em 0', borderRadius: '8px', overflow: 'hidden' }}>
+                                                                                <div style={{ background: '#2d2d2d', padding: '8px 12px', fontSize: '0.8rem', color: '#aaa', borderBottom: '1px solid #444' }}>
+                                                                                    {match[1]}
+                                                                                </div>
+                                                                                <pre style={{ background: '#1e1e1e', padding: '12px', overflowX: 'auto', margin: 0 }}>
+                                                                                    <code className={className} {...props}>
+                                                                                        {children}
+                                                                                    </code>
+                                                                                </pre>
+                                                                            </div>
+                                                                        )
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {msg.text}
+                                                            </ReactMarkdown>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 {isLastInGroup && (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '0 8px' }}>
@@ -1128,7 +1523,7 @@ export const AIView: React.FC = () => {
                                         );
                                     })}
                                     {isGenerating && chatMessages[chatMessages.length - 1]?.sender === 'user' && (
-                                        <TypingIndicator theme={theme} />
+                                        <TypingIndicator theme={theme} isFirstReply={!chatMessages.some(m => m.sender === 'bot')} />
                                     )}
                                 </div>
                                 {models.some(m => m.status === 'loading') && (
@@ -1153,11 +1548,11 @@ export const AIView: React.FC = () => {
                                 <div ref={messagesEndRef} style={{ height: '1px' }} />
                             </div>
 
-                            {/* Instagram Style Input Area */}
+                            {/* Glassmorphic Style Input Area */}
                             <div style={{
                                 padding: '1rem',
                                 background: 'var(--bg-primary)',
-                                borderTop: '1px solid var(--border-subtle)',
+                                borderTop: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.05)',
                                 flexShrink: 0,
                                 zIndex: 100,
                                 paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))'
@@ -1166,11 +1561,12 @@ export const AIView: React.FC = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '0.75rem',
-                                    background: theme === 'dark' ? '#121212' : '#f8f8f8',
+                                    background: theme === 'dark' ? 'rgba(14, 165, 233, 0.08)' : 'rgba(14, 165, 233, 0.04)',
                                     borderRadius: '26px',
                                     padding: '4px 6px 4px 16px',
-                                    border: '1px solid var(--border-subtle)',
-                                    minHeight: '44px'
+                                    border: `1px solid ${theme === 'dark' ? 'rgba(14, 165, 233, 0.25)' : 'rgba(14, 165, 233, 0.3)'}`,
+                                    minHeight: '44px',
+                                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
                                 }}>
                                     <input
                                         ref={inputRef}
@@ -1205,7 +1601,7 @@ export const AIView: React.FC = () => {
                                                 onPointerDown={(e) => {
                                                     e.preventDefault();
                                                     AIBridge.stopGenerate();
-                                                    setIsGenerating(false);
+                                                    // Let the finally block handle state reset
                                                 }}
                                                 style={{
                                                     width: '32px',
@@ -1844,16 +2240,7 @@ const TabButton = ({ active, onClick, icon: Icon, label }: any) => (
     </button>
 );
 
-interface Model {
-    id: string;
-    name: string;
-    description: string;
-    size: string;
-    status: 'idle' | 'downloading' | 'downloaded' | 'loading' | 'loaded';
-    progress?: number;
-    url?: string;
-    downloadId?: number;
-}
+
 
 const ModelCard = ({ model, onLoad, onDownload, onDelete, onOffload }: { model: Model, onLoad: () => void, onDownload: () => void, onDelete: () => void, onOffload: () => void }) => (
     <div style={{
@@ -1927,9 +2314,13 @@ const ModelCard = ({ model, onLoad, onDownload, onDelete, onOffload }: { model: 
                         <Pause size={18} /> Offload
                     </button>
                 )}
-                {(model.status === 'downloaded' || model.status === 'idle') && (
-                    <button onClick={onDelete} style={{ padding: '0.75rem', borderRadius: '12px', background: 'rgba(0,0,0,0.05)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}>
-                        <Trash2 size={18} />
+                {(model.status === 'downloaded' || model.status === 'idle' || model.status === 'downloading') && (
+                    <button
+                        onClick={onDelete}
+                        title={model.status === 'downloading' ? "Cancel Download" : "Delete Model"}
+                        style={{ padding: '0.75rem', borderRadius: '12px', background: 'rgba(0,0,0,0.05)', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}
+                    >
+                        {model.status === 'downloading' ? <X size={18} /> : <Trash2 size={18} />}
                     </button>
                 )}
             </div>
@@ -1937,41 +2328,114 @@ const ModelCard = ({ model, onLoad, onDownload, onDelete, onOffload }: { model: 
     </div>
 );
 
-const TypingIndicator = ({ theme }: { theme: string }) => (
-    <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            padding: '12px 18px',
-            background: theme === 'dark' ? '#262626' : '#EFEFEF',
-            borderRadius: '22px 22px 22px 4px',
-            alignSelf: 'flex-start',
-            marginBottom: '12px',
-            width: 'fit-content'
-        }}
-    >
-        {[0, 1, 2].map((i) => (
+const TypingIndicator = ({ theme, isFirstReply }: { theme: string; isFirstReply: boolean }) => {
+    const [statusText, setStatusText] = useState("Akitsu is reading context...");
+
+    useEffect(() => {
+        if (!isFirstReply) return;
+        const statuses = [
+            "Akitsu is reading context...",
+            "Akitsu is summarizing notes...",
+            "Akitsu is getting ready...",
+            "Akitsu is thinking..."
+        ];
+        let i = 0;
+        const interval = setInterval(() => {
+            i = (i + 1) % statuses.length;
+            setStatusText(statuses[i]);
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [isFirstReply]);
+
+    if (!isFirstReply) {
+        return (
             <motion.div
-                key={i}
-                animate={{ y: [0, -6, 0] }}
-                transition={{
-                    duration: 0.6,
-                    repeat: Infinity,
-                    delay: i * 0.15,
-                    ease: "easeInOut"
-                }}
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
                 style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: theme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '12px 18px',
+                    background: theme === 'dark' ? '#262626' : '#EFEFEF',
+                    borderRadius: '22px 22px 22px 4px',
+                    alignSelf: 'flex-start',
+                    marginBottom: '12px',
+                    width: 'fit-content'
                 }}
-            />
-        ))}
-    </motion.div>
-);
+            >
+                {[0, 1, 2].map((i) => (
+                    <motion.div
+                        key={i}
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{
+                            duration: 0.6,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                            ease: "easeInOut"
+                        }}
+                        style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            background: theme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)'
+                        }}
+                    />
+                ))}
+            </motion.div>
+        );
+    }
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '10px 16px',
+                background: theme === 'dark' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.8)',
+                backdropFilter: 'blur(12px)',
+                border: `1px solid ${theme === 'dark' ? 'rgba(14, 165, 233, 0.2)' : 'rgba(14, 165, 233, 0.3)'}`,
+                boxShadow: theme === 'dark' ? '0 4px 20px -5px rgba(0,0,0,0.4)' : '0 4px 20px -5px rgba(0,0,0,0.05)',
+                borderRadius: '22px 22px 22px 4px',
+                alignSelf: 'flex-start',
+                marginBottom: '12px',
+                width: 'fit-content'
+            }}
+        >
+            <div style={{ display: 'flex', gap: '4px' }}>
+                {[0, 1, 2].map((i) => (
+                    <motion.div
+                        key={i}
+                        animate={{ y: [0, -6, 0], scale: [1, 1.2, 1] }}
+                        transition={{
+                            duration: 0.6,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                            ease: "easeInOut"
+                        }}
+                        style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            background: '#0ea5e9',
+                            boxShadow: '0 0 8px rgba(14, 165, 233, 0.6)'
+                        }}
+                    />
+                ))}
+            </div>
+            <span style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-secondary)',
+                fontStyle: 'italic',
+                fontWeight: 500
+            }}>
+                {statusText}
+            </span>
+        </motion.div>
+    );
+};
 
 export default AIView;

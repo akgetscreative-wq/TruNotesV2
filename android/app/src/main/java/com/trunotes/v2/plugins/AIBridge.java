@@ -115,16 +115,22 @@ public class AIBridge extends Plugin {
         }
 
         try {
+            // Clean up existing file if any to prevent duplicates/garbage (DownloadManager appends -1, -2 otherwise)
+            File downloadDir = getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            File existingFile = new File(downloadDir, filename);
+            if (existingFile.exists()) {
+                existingFile.delete();
+            }
+
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setTitle("Downloading AI Model: " + filename);
-            request.setDescription("TruNotes AI Assist");
+            request.setDescription("TruNotes Akitsu");
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
             request.setAllowedOverMetered(true);
             request.setAllowedOverRoaming(true);
             request.addRequestHeader("User-Agent", "TruNotes/1.0");
             
             // Save to app-specific external files directory
-            File downloadDir = getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
             if (downloadDir != null && !downloadDir.exists()) {
                 boolean created = downloadDir.mkdirs();
                 Log.d(TAG, "Download directory created: " + created);
@@ -174,7 +180,11 @@ public class AIBridge extends Plugin {
 
     @PluginMethod
     public void getDownloadProgress(PluginCall call) {
-        long downloadId = call.getInt("downloadId").longValue();
+        Long downloadId = call.getLong("downloadId");
+        if (downloadId == null) {
+            call.reject("downloadId is required");
+            return;
+        }
         DownloadManager downloadManager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
         DownloadManager.Query query = new DownloadManager.Query();
         query.setFilterById(downloadId);
@@ -186,11 +196,11 @@ public class AIBridge extends Plugin {
             int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
             int reasonIdx = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
             
-            long bytesDownloaded = cursor.getInt(bytesDownloadedIdx);
-            long bytesTotal = cursor.getInt(bytesTotalIdx);
+            long bytesDownloaded = cursor.getLong(bytesDownloadedIdx);
+            long bytesTotal = cursor.getLong(bytesTotalIdx);
             int status = cursor.getInt(statusIdx);
-                int reason = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_REASON));
-                String localUri = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+            int reason = cursor.getInt(reasonIdx);
+            String localUri = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
 
                 double progress = 0;
                 if (bytesTotal > 0) {

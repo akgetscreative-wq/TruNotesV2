@@ -144,37 +144,33 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
     }, [bgColor]);
 
     const handleExport = async () => {
+        const isMobileView = typeof window !== 'undefined' && window.innerWidth <= 768;
         try {
             const dataUrl = getCompositeDataUrl();
             const base64Data = dataUrl.split(',')[1];
             const fileName = `${title.replace(/[^a-z0-9]/gi, '_') || 'scribble'}_${Date.now()}.png`;
 
-            if (isMobile) {
-                // Save to Documents folder on device
-                const result = await Filesystem.writeFile({
-                    path: fileName,
-                    data: base64Data,
-                    directory: Directory.Documents,
-                    // encoding: Encoding.UTF8 // Not needed for base64 data usually, but creates string
-                });
-
-                // Get the full URI to share or show
-                const uri = result.uri;
-
-                await Toast.show({
-                    text: `Saved to Documents as ${fileName}`,
-                    duration: 'long',
-                    position: 'bottom'
-                });
-
-                // Option to share immediately
-                await Share.share({
-                    title: 'Share Scribble',
-                    text: 'Check out my scribble!',
-                    url: uri,
-                    dialogTitle: 'Share your masterpiece'
-                });
-
+            if (isMobileView) {
+                try {
+                    await Filesystem.writeFile({
+                        path: `/storage/emulated/0/Download/${fileName}`,
+                        data: base64Data
+                    });
+                    await Toast.show({ text: `Saved to Downloads folder!`, duration: 'short', position: 'bottom' });
+                } catch (e) {
+                    const result = await Filesystem.writeFile({
+                        path: fileName,
+                        data: base64Data,
+                        directory: Directory.Documents
+                    });
+                    await Toast.show({ text: `Saved! Opening Share...`, duration: 'short', position: 'bottom' });
+                    await Share.share({
+                        title: 'Share Scribble',
+                        text: 'Save or Share your scribble',
+                        url: result.uri,
+                        dialogTitle: 'Save your masterpiece'
+                    });
+                }
             } else {
                 // Desktop / Browser download
                 const link = document.createElement('a');
@@ -184,11 +180,8 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
             }
         } catch (error) {
             console.error('Export failed:', error);
-            if (isMobile) {
-                await Toast.show({
-                    text: 'Failed to export image',
-                    duration: 'short'
-                });
+            if (isMobileView) {
+                await Toast.show({ text: 'Failed to export image', duration: 'short' });
             }
         }
     };

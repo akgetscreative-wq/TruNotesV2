@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Plus, Trash2, Calendar, Sparkles, Clock } from 'lucide-react';
+import { Check, Plus, Trash2, Calendar, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storage } from '../../lib/storage';
 import { useTheme } from '../../hooks/useTheme';
@@ -7,13 +7,27 @@ import type { Todo } from '../../types';
 import { HourlyLog } from '../HourlyLog/HourlyLog';
 import { HourlyLogSummary } from '../HourlyLog/HourlyLogSummary';
 
-export const TodoList: React.FC = () => {
+interface TodoListProps {
+    autoFocusInput?: boolean;
+    onFocusComplete?: () => void;
+}
+
+export const TodoList: React.FC<TodoListProps> = ({ autoFocusInput, onFocusComplete }) => {
     const { theme } = useTheme();
     const [todos, setTodos] = useState<Todo[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [loading, setLoading] = useState(true);
     const [focused, setFocused] = useState(false);
     const [showHourlyLog, setShowHourlyLog] = useState(false);
+    const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
+    const inputRef = React.useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (autoFocusInput && inputRef.current && !loading) {
+            inputRef.current.focus();
+            if (onFocusComplete) onFocusComplete();
+        }
+    }, [autoFocusInput, loading, onFocusComplete]);
 
     const refreshTodos = async () => {
         try {
@@ -89,101 +103,78 @@ export const TodoList: React.FC = () => {
                 margin: '0 auto',
                 minHeight: '80vh',
                 position: 'relative',
-                paddingTop: isMobile ? '2rem' : '0' // Extra room for the menu button and status bar
+                paddingTop: isMobile ? '2rem' : '0', // Extra room for the menu button and status bar
+                zIndex: 1
             }}
         >
             {/* Artistic Header Section */}
             <header style={{
                 marginBottom: isMobile ? '1.5rem' : '3rem',
-                textAlign: 'center',
-                position: 'relative'
+                position: 'relative',
+                padding: isMobile ? '0' : '0 1rem'
             }}>
                 <motion.div
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
+                    style={{
+                        display: 'flex',
+                        flexDirection: isMobile ? 'column' : 'row',
+                        alignItems: isMobile ? 'center' : 'flex-end',
+                        justifyContent: 'space-between',
+                        gap: isMobile ? '1rem' : '0'
+                    }}
                 >
-                    <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        padding: isMobile ? '0.35rem 1rem' : '0.5rem 1.25rem',
-                        borderRadius: '50px',
-                        background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                        marginBottom: '0.75rem',
-                        backdropFilter: 'blur(10px)'
-                    }}>
-                        <Sparkles size={isMobile ? 14 : 16} color={isDark ? '#e2e8f0' : '#64748b'} />
-                        <span style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                            Focus & Flow
-                        </span>
-                    </div>
-
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                         <h1 style={{
                             fontSize: isMobile ? '2.5rem' : '4rem',
                             fontWeight: 700,
                             lineHeight: 1.1,
-                            marginBottom: '0.5rem',
-                            fontFamily: 'var(--font-serif)',
-                            fontStyle: 'italic',
-                            letterSpacing: '-0.05em',
+                            marginBottom: '0',
+                            fontFamily: 'var(--font-sans)',
+                            letterSpacing: '-0.02em',
                             color: isDark ? 'white' : 'black',
                             position: 'relative',
                             display: 'inline-block'
                         }}>
                             <span style={{
                                 backgroundImage: isDark
-                                    ? 'linear-gradient(to right, #f472b6, #c084fc, #818cf8)'
-                                    : 'linear-gradient(to right, #db2777, #9333ea, #4f46e5)',
+                                    ? 'linear-gradient(to right, #0ea5e9, #22c55e)'
+                                    : 'linear-gradient(to right, #0284c7, #16a34a)',
                                 backgroundClip: 'text',
                                 WebkitBackgroundClip: 'text',
                                 WebkitTextFillColor: 'transparent',
                                 color: 'transparent',
                                 paddingBottom: '0.1em'
                             }}>
-                                My Tasks
+                                Todos
                             </span>
                         </h1>
-                        <motion.button
-                            onClick={() => setShowHourlyLog(true)}
-                            whileHover={{ scale: 1.1, rotate: 10 }}
-                            whileTap={{ scale: 0.9 }}
-                            style={{
-                                position: 'absolute',
-                                right: '-3rem',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                background: 'rgba(99, 102, 241, 0.1)',
-                                border: 'none',
-                                borderRadius: '12px',
-                                padding: '0.6rem',
-                                color: 'var(--accent-primary)',
-                                cursor: 'pointer',
-                                display: isMobile ? 'none' : 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}
-                        >
-                            <Clock size={24} />
-                        </motion.button>
-                        {isMobile && (
-                            <button
-                                onClick={() => setShowHourlyLog(true)}
-                                style={{
-                                    position: 'absolute',
-                                    right: '-2rem',
-                                    top: '0',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: 'var(--accent-primary)',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                <Clock size={20} />
-                            </button>
-                        )}
                     </div>
+
+                    <motion.button
+                        onClick={() => setShowHourlyLog(true)}
+                        whileHover={{ scale: 1.05, boxShadow: '0 8px 25px rgba(14, 165, 233, 0.4)' }}
+                        whileTap={{ scale: 0.95 }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            background: isDark ? 'rgba(14, 165, 233, 0.15)' : 'rgba(240, 250, 255, 0.9)',
+                            border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.3)' : 'rgba(14, 165, 233, 0.4)'}`,
+                            borderRadius: '20px',
+                            padding: '0.6rem 1.25rem',
+                            color: isDark ? '#38bdf8' : '#0369a1',
+                            cursor: 'pointer',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            fontFamily: 'var(--font-sans)',
+                            transition: 'all 0.3s ease'
+                        }}
+                    >
+                        <Clock size={18} />
+                        View Hourly Log
+                    </motion.button>
                 </motion.div>
             </header>
 
@@ -221,8 +212,9 @@ export const TodoList: React.FC = () => {
                         }}
                     >
                         <input
+                            ref={inputRef}
                             type="text"
-                            placeholder="Add a new task..."
+                            placeholder="Add a new todo..."
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onFocus={() => setFocused(true)}
@@ -235,13 +227,14 @@ export const TodoList: React.FC = () => {
                                 fontSize: isMobile ? '1.25rem' : '1.5rem',
                                 color: 'var(--text-primary)',
                                 outline: 'none',
-                                fontWeight: 300,
-                                fontFamily: 'var(--font-serif)'
+                                fontWeight: 500,
+                                fontFamily: 'var(--font-sans)',
+                                letterSpacing: '-0.01em'
                             }}
                         />
                         <motion.button
                             type="submit"
-                            whileHover={{ scale: 1.1, color: 'var(--accent-primary)' }}
+                            whileHover={{ scale: 1.1, color: '#0ea5e9' }}
                             whileTap={{ scale: 0.9 }}
                             disabled={!inputValue.trim()}
                             style={{
@@ -263,59 +256,74 @@ export const TodoList: React.FC = () => {
                 </form>
             </motion.div>
 
-            {/* Todo List - Stacked on Mobile */}
+            {/* Tabs for Todos */}
             <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                gap: isMobile ? '1.5rem' : '2rem',
-                alignItems: 'start',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '1rem',
+                marginBottom: '2rem',
+                padding: '0 1rem'
+            }}>
+                <button
+                    onClick={() => setActiveTab('pending')}
+                    style={{
+                        padding: '0.6rem 1.75rem',
+                        borderRadius: '24px',
+                        border: 'none',
+                        background: activeTab === 'pending' ? 'linear-gradient(135deg, #0ea5e9, #22c55e)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
+                        color: activeTab === 'pending' ? 'white' : 'var(--text-secondary)',
+                        fontFamily: 'var(--font-sans)',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        boxShadow: activeTab === 'pending' ? '0 8px 20px rgba(14, 165, 233, 0.3)' : 'none'
+                    }}
+                >
+                    Pending ({todos.filter(t => !t.completed).length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('completed')}
+                    style={{
+                        padding: '0.6rem 1.75rem',
+                        borderRadius: '24px',
+                        border: 'none',
+                        background: activeTab === 'completed' ? 'linear-gradient(135deg, #0ea5e9, #22c55e)' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
+                        color: activeTab === 'completed' ? 'white' : 'var(--text-secondary)',
+                        fontFamily: 'var(--font-sans)',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        boxShadow: activeTab === 'completed' ? '0 8px 20px rgba(14, 165, 233, 0.3)' : 'none'
+                    }}
+                >
+                    Completed ({todos.filter(t => t.completed).length})
+                </button>
+            </div>
+
+            {/* Todo List - Tabbed Layout */}
+            <div style={{
+                maxWidth: '700px',
+                margin: '0 auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: isMobile ? '0.75rem' : '1rem',
                 padding: isMobile ? '0 1rem' : '0'
             }}>
-                {/* Left Column: Active Tasks */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.75rem' : '1rem' }}>
-                    <h3 style={{
-                        fontSize: isMobile ? '1.1rem' : '1.2rem', color: 'var(--text-muted)', marginBottom: '0.25rem',
-                        paddingLeft: '0.5rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}>
-                        Active
-                        <span style={{ fontSize: '0.75rem', background: 'var(--bg-card)', padding: '0.15rem 0.5rem', borderRadius: '8px' }}>
-                            {todos.filter(t => !t.completed).length}
-                        </span>
-                    </h3>
-                    <AnimatePresence mode="popLayout">
-                        {todos.filter(t => !t.completed).map(todo => (
-                            <TodoItem key={todo.id} todo={todo} isDark={isDark} isMobile={isMobile} toggleTodo={toggleTodo} deleteTodo={deleteTodo} />
-                        ))}
-                    </AnimatePresence>
-                    {todos.filter(t => !t.completed).length === 0 && (
-                        <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', opacity: 0.6, border: '1px dashed var(--border-subtle)', borderRadius: '16px', fontSize: '0.9rem' }}>
-                            No active tasks
-                        </div>
-                    )}
-                </div>
-
-                {/* Right Column: Completed Tasks */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.75rem' : '1rem' }}>
-                    <h3 style={{
-                        fontSize: isMobile ? '1.1rem' : '1.2rem', color: 'var(--text-muted)', marginBottom: '0.25rem',
-                        paddingLeft: '0.5rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}>
-                        Completed
-                        <span style={{ fontSize: '0.75rem', background: 'var(--bg-card)', padding: '0.15rem 0.5rem', borderRadius: '8px' }}>
-                            {todos.filter(t => t.completed).length}
-                        </span>
-                    </h3>
-                    <AnimatePresence mode="popLayout">
-                        {todos.filter(t => t.completed).map(todo => (
-                            <TodoItem key={todo.id} todo={todo} isDark={isDark} isMobile={isMobile} toggleTodo={toggleTodo} deleteTodo={deleteTodo} />
-                        ))}
-                    </AnimatePresence>
-                    {todos.filter(t => t.completed).length === 0 && (
-                        <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', opacity: 0.6, border: '1px dashed var(--border-subtle)', borderRadius: '16px', fontSize: '0.9rem' }}>
-                            No completed tasks yet
-                        </div>
-                    )}
-                </div>
+                <AnimatePresence mode="popLayout">
+                    {todos.filter(t => activeTab === 'pending' ? !t.completed : t.completed).map(todo => (
+                        <TodoItem key={todo.id} todo={todo} isDark={isDark} isMobile={isMobile} toggleTodo={toggleTodo} deleteTodo={deleteTodo} />
+                    ))}
+                </AnimatePresence>
+                {todos.filter(t => activeTab === 'pending' ? !t.completed : t.completed).length === 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', border: '1.5px dashed var(--border-subtle)', borderRadius: '24px', fontSize: '1rem', fontStyle: 'italic', fontFamily: 'var(--font-serif)', marginTop: '1rem' }}
+                    >
+                        {activeTab === 'pending' ? 'All caught up! No pending todos.' : 'No completed todos yet. Keep going!'}
+                    </motion.div>
+                )}
             </div>
 
             {/* Hourly Log Summary Integration */}
@@ -340,13 +348,13 @@ const TodoItem: React.FC<{
             animate={{
                 opacity: 1,
                 y: 0,
-                // Active tasks get a purple tint, completed get standard background
+                // Active tasks get a blue tint, completed get standard background
                 backgroundColor: todo.completed
                     ? (isDark ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.6)')
-                    : (isDark ? 'rgba(88, 28, 135, 0.6)' : 'rgba(237, 233, 254, 0.95)'), // Deep Purple vs Light Lavender
+                    : (isDark ? 'rgba(14, 165, 233, 0.08)' : 'rgba(240, 250, 255, 0.95)'), // Deep Blue vs Light Blue
                 borderColor: todo.completed
                     ? (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)')
-                    : (isDark ? 'rgba(168, 85, 247, 0.35)' : 'rgba(168, 85, 247, 0.4)')
+                    : (isDark ? 'rgba(14, 165, 233, 0.3)' : 'rgba(14, 165, 233, 0.3)')
             }}
             exit={{ opacity: 0, scale: 0.95 }}
             style={{
@@ -355,11 +363,11 @@ const TodoItem: React.FC<{
                 gap: isMobile ? '0.75rem' : '1rem',
                 padding: isMobile ? '0.85rem' : '1.25rem',
                 borderRadius: '16px',
-                borderLeft: `3px solid ${todo.completed ? 'var(--text-muted)' : 'var(--accent-primary)'}`,
+                borderLeft: `3.5px solid ${todo.completed ? 'var(--text-muted)' : '#0ea5e9'}`,
                 border: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(0,0,0,0.02)',
-                // Purple glow for active items
+                // Blue/Green glow for active items
                 boxShadow: !todo.completed
-                    ? (isDark ? '0 4px 20px rgba(168, 85, 247, 0.15)' : '0 4px 15px rgba(168, 85, 247, 0.25)')
+                    ? (isDark ? '0 4px 20px rgba(14, 165, 233, 0.15)' : '0 4px 15px rgba(14, 165, 233, 0.25)')
                     : (isDark ? '0 4px 20px rgba(0,0,0,0.2)' : '0 4px 20px rgba(0,0,0,0.05)'),
                 backdropFilter: 'blur(16px)',
                 userSelect: 'none',
@@ -377,8 +385,8 @@ const TodoItem: React.FC<{
                     width: isMobile ? '22px' : '28px',
                     height: isMobile ? '22px' : '28px',
                     borderRadius: '50%',
-                    border: `2px solid ${todo.completed ? 'var(--accent-primary)' : (isDark ? '#c084fc' : '#9333ea')}`,
-                    background: todo.completed ? 'var(--accent-primary)' : 'transparent',
+                    border: `2px solid ${todo.completed ? '#22c55e' : (isDark ? '#38bdf8' : '#0ea5e9')}`,
+                    background: todo.completed ? '#22c55e' : 'transparent',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -397,10 +405,10 @@ const TodoItem: React.FC<{
                     display: 'block',
                     fontSize: isMobile ? '0.95rem' : '1.1rem',
                     textDecoration: todo.completed ? 'line-through' : 'none',
-                    // Improve contrast on purple background
+                    // Improve contrast on blue background
                     color: todo.completed
                         ? 'var(--text-muted)'
-                        : (isDark ? '#f3e8ff' : '#4c1d95'), // Light lilac text on dark purple, Dark purple text on light lavender
+                        : (isDark ? '#e0f2fe' : '#0369a1'), // Light blue text on dark blue, Dark blue text on light blue
                     fontWeight: todo.completed ? 'normal' : 600,
                     marginBottom: '0.15rem',
                     transition: 'color 0.2s',

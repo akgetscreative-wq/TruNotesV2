@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Dancing+Script:wght@400..700&family=Fredoka:wght@300..700&family=Indie+Flower&family=Pacifico&family=Shadows+Into+Light&display=swap');
 
 :root {
   /* V3 Premium Theme (Clean & Colorful) */
@@ -229,15 +229,20 @@
 /* Snappy transitions for interactive elements */
 button,
 a,
-.clickable {
-  transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
+.clickable,
+select {
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent !important;
+  outline: none !important;
 }
 
 button:active,
-a:active {
-  transform: scale(0.98);
+a:active,
+.clickable:active {
+  transform: scale(0.92);
 }
 
+html,
 body {
   transition: var(--theme-transition);
   background-color: var(--bg-primary);
@@ -246,11 +251,17 @@ body {
   padding: 0;
   font-family: var(--font-sans);
   overflow: hidden;
-  height: 100dvh;
+  height: 100vh;
   width: 100vw;
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 .layout,
@@ -400,7 +411,7 @@ textarea {
 }
 
 .dashboard-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #6366f1, #a855f7, #ec4899);
+  background: linear-gradient(to bottom, #0284c7, #0ea5e9, #22c55e);
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -492,8 +503,8 @@ input:checked+.slider:before {
   main {
     flex: 1 !important;
     padding: 0 !important;
-    padding-top: var(--safe-top) !important;
-    padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+    padding-top: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     position: relative;
@@ -642,4 +653,11 @@ input:checked+.slider:before {
 
 .text-accent {
   color: var(--accent-primary);
+}
+
+.text-pink-gradient {
+  background: linear-gradient(135deg, #f472b6 0%, #db2777 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

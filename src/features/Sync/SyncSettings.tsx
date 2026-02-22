@@ -138,7 +138,7 @@ export const SyncSettings: React.FC = () => {
     };
 
     return (
-        <div style={{ padding: '2rem', maxWidth: '600px', color: 'var(--text-primary)' }}>
+        <div style={{ padding: '2rem', maxWidth: '600px', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }}>
             <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
                 <Cloud /> Google Drive Sync
             </h2>

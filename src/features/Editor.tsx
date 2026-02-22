@@ -282,17 +282,14 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
     const handleTruPolish = async () => {
         if (!content.trim() || isPolishing) return;
 
-        // Strip HTML for the AI prompt
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = content;
         const plainText = tempDiv.textContent || tempDiv.innerText || '';
-
         if (!plainText.trim()) return;
 
         setIsPolishing(true);
-        if ((window as any).showToast) (window as any).showToast("Polishing... Wait for a moment", "info");
+        if ((window as any).showToast) (window as any).showToast("Polishing...", "info");
 
-        // Helper to load model if not ready
         const ensureModelLoaded = async () => {
             const last = await AIBridge.getLastModelPath();
             if (last.path) {
@@ -303,13 +300,12 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
         };
 
         try {
-            // Detect model type from path for native template optimization
             const last = await AIBridge.getLastModelPath();
             const modelPath = last.path || "";
             const lowerPath = modelPath.toLowerCase();
 
-            // COMPRESSED SURGICAL INSTRUCTION: No fluff, no leakage, max speed.
-            const instruction = `CMD: Polish text. FORMAT: <b>-bold, <ul><li>-bullets, <h2>-header. HL: [HL:Y]yellow, [HL:G]green, [HL:B]blue. ONLY polished text result. ---CONTENT START---\n\n`;
+            // Concise summarization with smart bullet points
+            const instruction = `Summarize and simplify the following text. Make it concise, clear, and easy to read. Use simple language. Use bullet points ONLY where listing multiple items or key points improves readability — otherwise use short paragraphs. Fix grammar and spelling. Output ONLY the improved text, nothing else.\n\n`;
             let prompt = "";
 
             if (lowerPath.includes('llama-3')) {
@@ -320,59 +316,88 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
                 prompt = `<|im_start|>user\n${instruction}${plainText}<|im_end|>\n<|im_start|>assistant\n`;
             }
 
-            // Speed Cap: Prevent looping/minute-long runs. Polish shouldn't be massive.
-            const maxPredict = Math.min(plainText.length * 2 + 100, 1000);
+            // Aggressive speed cap: keep output tight
+            const maxPredict = Math.min(Math.ceil(plainText.length * 1.3) + 80, 500);
 
             let result = await AIBridge.generateSync({
                 prompt,
-                temperature: 0.1,
+                temperature: 0.15,
                 n_predict: maxPredict,
-                penalty: 1.1
+                penalty: 1.3,  // Higher penalty to kill repetition loops
+                top_k: 30,
+                top_p: 0.85
             });
 
-            // Fallback: If model isn't loaded, try to load last model and retry
             if (result.response.includes("Error: Model not loaded")) {
                 const loaded = await ensureModelLoaded();
                 if (loaded) {
                     result = await AIBridge.generateSync({
                         prompt,
-                        temperature: 0.1,
+                        temperature: 0.15,
                         n_predict: maxPredict,
-                        penalty: 1.1
+                        penalty: 1.3,
+                        top_k: 30,
+                        top_p: 0.85
                     });
                 } else {
-                    throw new Error("No model is currently loaded. Please go to AI Assist and load a model first.");
+                    throw new Error("No model loaded. Go to Akitsu and load a model first.");
                 }
             }
 
             if (result.response) {
-                let finalResponse = result.response.trim();
+                let text = result.response.trim();
 
-                // Cut off accidental repetition after [AI_END]
-                if (finalResponse.includes('[AI_END]')) {
-                    finalResponse = finalResponse.split('[AI_END]')[0].trim();
+                // Cut off any repetition/garbage after obvious end markers
+                for (const marker of ['[AI_END]', '<|im_end|>', '<|eot_id|>', '<end_of_turn>', '---CONTENT END---', '---END---']) {
+                    if (text.includes(marker)) text = text.split(marker)[0].trim();
                 }
 
-                // Safety: Convert any remaining markdown bold to HTML bold
-                finalResponse = finalResponse.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                // Strip any "Here is the improved text:" preamble
+                text = text.replace(/^(Here('s| is).*?:\s*\n?)/i, '');
 
-                // Convert AI Highlight Tags to HTML Mark tags
-                // Y = Yellow, G = Green (soft), B = Blue (soft)
-                finalResponse = finalResponse
-                    .replace(/\[HL:Y\](.*?)\[\/HL\]/gi, '<mark style="background-color: rgba(255, 235, 59, 0.4); color: inherit; padding: 0 2px; border-radius: 4px;">$1</mark>')
-                    .replace(/\[HL:G\](.*?)\[\/HL\]/gi, '<mark style="background-color: rgba(76, 175, 80, 0.3); color: inherit; padding: 0 2px; border-radius: 4px;">$1</mark>')
-                    .replace(/\[HL:B\](.*?)\[\/HL\]/gi, '<mark style="background-color: rgba(33, 150, 243, 0.3); color: inherit; padding: 0 2px; border-radius: 4px;">$1</mark>');
+                // --- Smart HTML conversion ---
+                // Convert markdown bold **text** → <b>text</b>
+                text = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
 
-                const formatted = finalResponse
-                    .replace(/\n\n/g, '</p><p>')
-                    .replace(/\n/g, '<br>');
+                // Convert markdown headers: # Header → <h3>
+                text = text.replace(/^###\s+(.+)$/gm, '<h3 style="margin:0.5em 0 0.3em;font-size:1.1em;color:var(--accent-primary)">$1</h3>');
+                text = text.replace(/^##\s+(.+)$/gm, '<h2 style="margin:0.6em 0 0.3em;font-size:1.2em">$1</h2>');
+                text = text.replace(/^#\s+(.+)$/gm, '<h2 style="margin:0.6em 0 0.3em;font-size:1.3em">$1</h2>');
 
-                setContent(formatted);
+                // Convert bullet lines: - item or * item → <li>
+                const lines = text.split('\n');
+                let html = '';
+                let inList = false;
+
+                for (const line of lines) {
+                    const bulletMatch = line.match(/^\s*[-*•]\s+(.+)/);
+                    if (bulletMatch) {
+                        if (!inList) { html += '<ul style="margin:0.4em 0;padding-left:1.5em">'; inList = true; }
+                        html += `<li style="margin:0.2em 0">${bulletMatch[1]}</li>`;
+                    } else {
+                        if (inList) { html += '</ul>'; inList = false; }
+                        if (line.trim()) {
+                            // If it already contains an HTML tag (h2, h3), add as-is
+                            if (line.includes('<h2') || line.includes('<h3')) {
+                                html += line;
+                            } else {
+                                html += `<p style="margin:0.3em 0">${line}</p>`;
+                            }
+                        }
+                    }
+                }
+                if (inList) html += '</ul>';
+
+                // Auto-highlight: bold key phrases get a subtle accent background
+                html = html.replace(/<b>(.*?)<\/b>/g,
+                    '<b style="background:rgba(99,102,241,0.12);padding:1px 4px;border-radius:4px">$1</b>');
+
+                setContent(html);
                 if (editorRef.current) {
-                    editorRef.current.innerHTML = formatted;
+                    editorRef.current.innerHTML = html;
                 }
                 markUnsaved();
-                if ((window as any).showToast) (window as any).showToast("Text refined!", "success");
+                if ((window as any).showToast) (window as any).showToast("Text polished! ✨", "success");
             }
         } catch (err: any) {
             console.error("AI Polish failed:", err);
@@ -407,7 +432,7 @@ export const Editor: React.FC<EditorProps> = ({ note, onSave, onBack, onScribble
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: isMobile ? 'calc(var(--safe-top) + 0.5rem) 0.75rem 0.5rem 0.75rem' : '1rem 2rem',
+                padding: isMobile ? 'calc(var(--safe-top) + 0.15rem) 0.75rem 0.4rem 0.75rem' : '1rem 2rem',
                 borderBottom: 'none',
                 opacity: isFocused ? 0 : 1,
                 pointerEvents: isFocused ? 'none' : 'auto',

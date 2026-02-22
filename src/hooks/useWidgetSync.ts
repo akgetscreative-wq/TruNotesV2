@@ -56,8 +56,16 @@ export function useWidgetSync() {
 
                     // Clear flag
                     await Preferences.set({ key: 'needs_native_sync', value: 'false' });
+
+                    // Force all hooks to refresh with the new data
+                    storage.notifyListeners();
+
                     console.log("WidgetSync: Sync complete.");
                 }
+
+                // Always push the latest app data to widgets on resume
+                // This ensures the widget shows up-to-date data even if needs_native_sync was false
+                await storage.triggerWidgetSync();
             } catch (e) {
                 console.error("WidgetSync: Sync failed", e);
             }

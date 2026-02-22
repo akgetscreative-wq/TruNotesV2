@@ -1,0 +1,68 @@
+@startuml
+title TruNotesv2 - Critical Path Method (CPM) Diagram
+top to bottom direction
+
+skinparam componentStyle rectangle
+
+skinparam component {
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+}
+
+skinparam component {
+    BackgroundColor<<Critical>> #FFCCCC
+    BorderColor<<Critical>> Red
+    FontColor<<Critical>> Red
+    BorderThickness<<Critical>> 2
+}
+
+skinparam arrow {
+    Color<<Critical>> Red
+    Thickness<<Critical>> 2
+}
+
+' Define Tasks
+component "A: Start & Setup\n(2 Days)" as A <<Critical>>
+component "B: Auth System\n(4 Days)" as B
+component "C: Local DB Setup\n(3 Days)" as C <<Critical>>
+component "D: Global Design\n(5 Days)" as D
+component "E: AI Bridge Imp.\n(6 Days)" as E
+component "F: Editor Engine\n(8 Days)" as F <<Critical>>
+component "G: Notes UI & CRUD\n(10 Days)" as G <<Critical>>
+component "H: Sync Engine\n(6 Days)" as H <<Critical>>
+component "I: AI Features\n(5 Days)" as I
+component "J: Tasks & Calendar\n(4 Days)" as J
+component "K: Refining & Polish\n(6 Days)" as K <<Critical>>
+component "L: Release\n(1 Day)" as L <<Critical>>
+
+' Define Dependencies based on analysis
+A -down-> B
+A -down-> C <<Critical>>
+A -down-> D
+
+C -down-> E
+C -down-> F <<Critical>>
+
+F -down-> G <<Critical>>
+
+B -down-> H
+G -down-> H <<Critical>>
+G -down-> J
+
+E -down-> I
+
+' Convergence to K
+D -down-> K
+H -down-> K <<Critical>>
+I -down-> K
+J -down-> K
+
+K -down-> L <<Critical>>
+
+note right of L
+  **Total Duration:** 36 Days
+  **Critical Path:** Red Nodes
+end note
+
+@enduml

@@ -20,8 +20,9 @@ export interface Todo {
     completed: boolean;
     createdAt: number;
     updatedAt: number;
-    targetDate: string; // YYYY-MM-DD
+    targetDate: string; // YYYY-MM-DD or 'daily'
     deleted?: boolean;
+    dailyParentId?: string;
 }
 
 export interface Folder {

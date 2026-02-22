@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react';
-import { Image as ImageIcon, Plus, Trash2, Home, Monitor, Book, User, Shield, Moon, Sun, Database, AlertTriangle, CheckSquare, Coffee, Fingerprint, Info, Heart } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, Home, Monitor, Book, User, Shield, Moon, Sun, Database, AlertTriangle, CheckSquare, Coffee, Fingerprint, Info, Heart, Code, Terminal } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeContext } from '../../context/ThemeContext';
+import { defaultContextScript } from './AIDefaultContextScript';
+import { defaultActionScript } from './AIDefaultActionScript';
 
 export const SettingsView: React.FC = () => {
     const {
@@ -51,6 +53,25 @@ export const SettingsView: React.FC = () => {
     const [passwordSuccess, setPasswordSuccess] = useState('');
 
     const [biometricAvailable, setBiometricAvailable] = useState(false);
+
+    // AI Developer Settings
+    const [devPassword, setDevPassword] = useState('');
+    const [isDevUnlocked, setIsDevUnlocked] = useState(false);
+    const [aiIdentityCode, setAiIdentityCode] = useState(localStorage.getItem('AI_DEV_IDENTITY') || `You are Akitsu — the user's sweet, capable personal AI companion built into TruNotes. You're warm, cheerful, and genuinely care about helping. You speak naturally like a close friend who happens to be incredibly organized and smart. {responseStyle} You have full access to the user's notes, tasks, and hourly logs. You can create, edit, delete, and manage everything in the app. Proactively offer help when you notice things. Be delightful.{appControlInstruction}`);
+    const [aiAppControlCode, setAiAppControlCode] = useState(localStorage.getItem('AI_DEV_APP_CONTROL') || `You have full control over the user's TruNotes app. When they ask you to manage anything, use these commands:
+- [CREATE_TASK: "task text"] — create a task for today
+- [CREATE_TASK: "task text" date="YYYY-MM-DD"] — create for a specific date
+- [COMPLETE_TASK: "task text"] — mark a task as done
+- [DELETE_TASK: "task text"] — delete a task
+- [CREATE_NOTE: title="Title" content="Content"] — create a new note
+- [EDIT_NOTE: title="Title" content="New content"] — edit a note
+- [DELETE_NOTE: "Title"] — delete a note
+- [TOGGLE_FAVORITE: "Title"] — toggle favorite on a note
+- [LOG_HOUR: hour=HH content="What happened"] — log an entry for a specific hour (0-23)
+- [SAVEMEM: "fact"] — remember something important about the user
+When asked to add, create, edit, delete, log, or manage anything, ALWAYS use these commands and briefly confirm what you did.`);
+    const [aiContextCode, setAiContextCode] = useState(localStorage.getItem('AI_DEV_CONTEXT_SCRIPT') || defaultContextScript);
+    const [aiActionCode, setAiActionCode] = useState(localStorage.getItem('AI_DEV_ACTION_SCRIPT') || defaultActionScript);
 
     React.useEffect(() => {
         const checkBiometric = async () => {
@@ -174,7 +195,9 @@ export const SettingsView: React.FC = () => {
         <div className="fade-in dashboard-scrollbar" style={{
             padding: isMobile ? '4rem 1rem 2rem 1rem' : '4rem 2rem',
             height: '100%',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            position: 'relative',
+            zIndex: 1
         }}>
             <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '2rem', color: 'var(--text-primary)' }}>Settings</h1>
 
@@ -416,7 +439,7 @@ export const SettingsView: React.FC = () => {
                         Overlay Opacity
                     </h3>
                     <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.85rem' }}>
-                        Controls background darkness on <strong>Dashboard, Journal, Tasks, and Tomorrow</strong>.
+                        Controls background darkness on <strong>Dashboard, Notes, Todos, and Scheduled</strong>.
                     </p>
 
                     {/* Light Mode Opacity */}
@@ -452,7 +475,7 @@ export const SettingsView: React.FC = () => {
                 <div>
                     <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Background Blur</h3>
                     <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.85rem' }}>
-                        Controls glass blur effect on <strong>Dashboard, Journal, Tasks, and Tomorrow</strong>.
+                        Controls glass blur effect on <strong>Dashboard, Notes, Todos, and Scheduled</strong>.
                     </p>
 
                     {/* Light Mode Blur */}
@@ -554,9 +577,9 @@ export const SettingsView: React.FC = () => {
 
             {/* Journal Image Setting */}
             <div style={sectionStyle}>
-                <h2 style={titleStyle}><Book size={24} color="var(--accent-primary)" /> Journal Background</h2>
+                <h2 style={titleStyle}><Book size={24} color="var(--accent-primary)" /> Notes Background</h2>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
-                    Choose a custom background image for your Journal tab.
+                    Choose a custom background image for your Notes tab.
                 </p>
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
@@ -621,9 +644,9 @@ export const SettingsView: React.FC = () => {
 
             {/* Tasks Image Setting */}
             <div style={sectionStyle}>
-                <h2 style={titleStyle}><CheckSquare size={24} color="var(--accent-primary)" /> Tasks Background</h2>
+                <h2 style={titleStyle}><CheckSquare size={24} color="var(--accent-primary)" /> Todos Background</h2>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
-                    Choose a custom background image for your Tasks tab.
+                    Choose a custom background image for your Todos tab.
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
                     <div
@@ -687,9 +710,9 @@ export const SettingsView: React.FC = () => {
 
             {/* Tomorrow/Soon Image Setting */}
             <div style={sectionStyle}>
-                <h2 style={titleStyle}><Coffee size={24} color="var(--accent-primary)" /> Soon Background</h2>
+                <h2 style={titleStyle}><Coffee size={24} color="var(--accent-primary)" /> Scheduled Background</h2>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
-                    Choose a custom background image for your Soon tab.
+                    Choose a custom background image for your Scheduled tab.
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
                     <div
@@ -816,6 +839,163 @@ export const SettingsView: React.FC = () => {
                 />
             </div>
 
+            {/* AI Developer Code Editor Section */}
+            <div style={sectionStyle}>
+                <h2 style={titleStyle}><Code size={24} color="#a855f7" /> AI Developer Options</h2>
+                {!isDevUnlocked ? (
+                    <div>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.95rem' }}>
+                            Restricted area. Modify internal AI hardcodings and behavior parameters.
+                        </p>
+                        <div style={{ display: 'flex', gap: '1rem', maxWidth: '300px' }}>
+                            <input
+                                type="password"
+                                placeholder="Developer PIN"
+                                value={devPassword}
+                                onChange={e => setDevPassword(e.target.value)}
+                                style={{ ...inputStyle, marginBottom: 0 }}
+                            />
+                            <button
+                                onClick={() => {
+                                    if (devPassword === '3207') {
+                                        setIsDevUnlocked(true);
+                                    } else {
+                                        if ((window as any).showToast) (window as any).showToast('Incorrect PIN', 'error');
+                                    }
+                                }}
+                                style={{
+                                    padding: '0 1.5rem', background: '#a855f7', color: 'white',
+                                    borderRadius: '12px', border: 'none', fontWeight: 600, cursor: 'pointer'
+                                }}
+                            >
+                                Unlock
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ padding: '1rem', background: 'rgba(168, 85, 247, 0.1)', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                            <h3 style={{ margin: '0 0 0.5rem 0', color: '#a855f7', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Terminal size={18} /> Dynamic Runtime Code Editor
+                            </h3>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                Override the hardcoded system prompts globally. Use <code style={{ color: '#fff' }}>{'{responseStyle}'}</code> and <code style={{ color: '#fff' }}>{'{appControlInstruction}'}</code> as dynamic inject variables.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Identity & Persona Injection Template</label>
+                            <textarea
+                                value={aiIdentityCode}
+                                onChange={e => setAiIdentityCode(e.target.value)}
+                                style={{
+                                    ...inputStyle,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.85rem',
+                                    minHeight: '200px',
+                                    whiteSpace: 'pre',
+                                    background: 'rgba(0,0,0,0.4)',
+                                    color: '#e2e8f0',
+                                    lineHeight: '1.5'
+                                }}
+                            />
+                        </div>
+
+                        <div>
+                            <label style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>App Control Injection Template</label>
+                            <textarea
+                                value={aiAppControlCode}
+                                onChange={e => setAiAppControlCode(e.target.value)}
+                                style={{
+                                    ...inputStyle,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.85rem',
+                                    minHeight: '250px',
+                                    whiteSpace: 'pre',
+                                    background: 'rgba(0,0,0,0.4)',
+                                    color: '#e2e8f0',
+                                    lineHeight: '1.5'
+                                }}
+                            />
+                        </div>
+
+                        <div>
+                            <label style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>RAG Context & Memory Retrieval Logic (JavaScript)</label>
+                            <textarea
+                                value={aiContextCode}
+                                onChange={e => setAiContextCode(e.target.value)}
+                                style={{
+                                    ...inputStyle,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.85rem',
+                                    minHeight: '400px',
+                                    whiteSpace: 'pre',
+                                    background: 'rgba(0,0,0,0.4)',
+                                    color: '#e2e8f0',
+                                    lineHeight: '1.5'
+                                }}
+                            />
+                        </div>
+
+                        <div>
+                            <label style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Action Evaluation & Tool Calling Router (JavaScript)</label>
+                            <textarea
+                                value={aiActionCode}
+                                onChange={e => setAiActionCode(e.target.value)}
+                                style={{
+                                    ...inputStyle,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.85rem',
+                                    minHeight: '400px',
+                                    whiteSpace: 'pre',
+                                    background: 'rgba(0,0,0,0.4)',
+                                    color: '#e2e8f0',
+                                    lineHeight: '1.5'
+                                }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button
+                                onClick={() => {
+                                    localStorage.setItem('AI_DEV_IDENTITY', aiIdentityCode);
+                                    localStorage.setItem('AI_DEV_APP_CONTROL', aiAppControlCode);
+                                    localStorage.setItem('AI_DEV_CONTEXT_SCRIPT', aiContextCode);
+                                    localStorage.setItem('AI_DEV_ACTION_SCRIPT', aiActionCode);
+                                    if ((window as any).showToast) (window as any).showToast('AI Source Runtime Code Overwritten! 🚀', 'success');
+                                }}
+                                style={{
+                                    flex: 1, padding: '1rem', background: '#a855f7', color: 'white',
+                                    borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer',
+                                    fontSize: '1rem', boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+                                }}
+                            >
+                                Compile & Inject Code
+                            </button>
+                            <button
+                                onClick={() => {
+                                    localStorage.removeItem('AI_DEV_IDENTITY');
+                                    localStorage.removeItem('AI_DEV_APP_CONTROL');
+                                    localStorage.removeItem('AI_DEV_CONTEXT_SCRIPT');
+                                    localStorage.removeItem('AI_DEV_ACTION_SCRIPT');
+                                    setAiIdentityCode(`You are Akitsu — the user's sweet, capable personal AI companion built into TruNotes. You're warm, cheerful, and genuinely care about helping. You speak naturally like a close friend who happens to be incredibly organized and smart. {responseStyle} You have full access to the user's notes, tasks, and hourly logs. You can create, edit, delete, and manage everything in the app. Proactively offer help when you notice things. Be delightful.{appControlInstruction}`);
+                                    setAiAppControlCode(`\nYou have full control over the user's TruNotes app. When they ask you to manage anything, use these commands:\n- [CREATE_TASK: "task text"] — create a task for today\n- [CREATE_TASK: "task text" date="YYYY-MM-DD"] — create for a specific date\n- [COMPLETE_TASK: "task text"] — mark a task as done\n- [DELETE_TASK: "task text"] — delete a task\n- [CREATE_NOTE: title="Title" content="Content"] — create a new note\n- [EDIT_NOTE: title="Title" content="New content"] — edit a note\n- [DELETE_NOTE: "Title"] — delete a note\n- [TOGGLE_FAVORITE: "Title"] — toggle favorite on a note\n- [LOG_HOUR: hour=HH content="What happened"] — log an entry for a specific hour (0-23)\n- [SAVEMEM: "fact"] — remember something important about the user\nWhen asked to add, create, edit, delete, log, or manage anything, ALWAYS use these commands and briefly confirm what you did.`);
+                                    setAiContextCode(defaultContextScript);
+                                    setAiActionCode(defaultActionScript);
+                                    if ((window as any).showToast) (window as any).showToast('Restored to Factory Defaults', 'success');
+                                }}
+                                style={{
+                                    padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                                    borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600, cursor: 'pointer',
+                                }}
+                            >
+                                Restore Defaults
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Danger Zone */}
             <div style={{ ...sectionStyle, border: '1px solid rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.05)' }}>
                 <h2 style={{ ...titleStyle, color: '#ef4444' }}><AlertTriangle size={24} color="#ef4444" /> Danger Zone</h2>
@@ -865,7 +1045,7 @@ export const SettingsView: React.FC = () => {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', marginTop: '0.5rem' }}>
                         <div>
                             <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Version</div>
-                            <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>1.0.7 (Stable)</div>
+                            <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>1.1.0 (Stable)</div>
                         </div>
                         <div>
                             <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Platform</div>

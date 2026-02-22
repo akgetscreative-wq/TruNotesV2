@@ -1,0 +1,146 @@
+@startuml
+title TruNotesv2 Activity Diagram
+skinparam activityFontSize 14
+skinparam activityDiamondFontSize 14
+skinparam noteFontSize 12
+
+start
+
+:Launch App;
+
+partition "Authentication & Startup" {
+    :Initialize Stores (Auth, Settings, Time);
+    
+    if (Is Authenticated?) then (no)
+        :Show Login Page;
+        if (Biometric Enabled?) then (yes)
+            :Prompt for Biometrics;
+            if (Bio Success?) then (no)
+                :Fallback to Password;
+            endif
+        else (no)
+            :Enter Password;
+        endif
+        
+        if (Login Success?) then (yes)
+            :Set Authenticated;
+        else (no)
+            :Show Error;
+            stop
+        endif
+    else (yes)
+        :Restore Session;
+    endif
+    
+    :Load User Settings & Theme;
+    :Start Background Sync;
+}
+
+partition "Main Application" {
+    :Show Dashboard;
+    
+    repeat
+        :Wait for User Action;
+        
+        switch (Select Application View)
+        
+        case ( Manage Notes )
+            :Open Journal / Favorites;
+            if (Create New Note?) then (yes)
+                if (Type?) then (Text)
+                    :Initialize Text Editor;
+                else (Scribble)
+                    :Initialize Canvas (Scribble);
+                endif
+            else (Select Existing)
+                :Load Note Content;
+            endif
+            
+            :Open Editor View;
+            repeat
+                :Edit Content;
+                if (Auto-Save Triggered?) then (yes)
+                    :Save to IndexedDB/Storage;
+                endif
+            repeat while (Editing?) is (yes)
+            
+            :Save Final Version;
+            :Sync Changes (if online);
+            :Close Editor;
+        
+        case ( AI Features (Local LLM) )
+            :Open AI View;
+            
+            if (Active Model Loaded?) then (no)
+                :Check Downloaded Models;
+                if (Model Exists?) then (yes)
+                    :Load Model into RAM;
+                else (no)
+                    :Download from HuggingFace;
+                    :Load Model;
+                endif
+            endif
+
+            :Chat Interface;
+            
+            if (Send Message) then (yes)
+                :Retrieve Context (Recent Notes, Tasks, History);
+                :Construct System Prompt + Context;
+                :Send to Local LLM (bridge);
+                
+                while (Streaming Response) is (yes)
+                    :Update Chat Interface;
+                endwhile
+                
+                if (Response contains Command?) then (yes)
+                    if ([CREATE_NOTE]) then
+                        :Create New Note;
+                    elseif ([CREATE_TASK]) then
+                        :Add to Todo List;
+                    elseif ([SAVEMEM]) then
+                        :Update Persistent Memory;
+                    endif
+                endif
+            endif
+            
+            :Display Response;
+
+        case ( Task Management )
+            :Open Tasks / Tomorrow View;
+            split
+                :Add New Task;
+            split again
+                :Mark Complete;
+            split again
+                :Reorder Tasks;
+            end split
+            :Update Task Store;
+            
+        case ( Calendar )
+            :Open Calendar View;
+            :Render Month/Day;
+            :Fetch Tasks for Selected Date;
+            :Display Agenda;
+             
+        case ( Productivity )
+            :Open Timer;
+            :Start/Stop/Reset Focus Timer;
+            
+        case ( Settings & Sync )
+            :Open Settings;
+            split
+                :Configure Sync (Google Drive);
+                :Trigger Manual Sync;
+            split again
+                :Change Theme (Dark/Light);
+                :Set Background Image;
+            end split
+            
+        endswitch
+        
+    repeat while (App Open?) is (yes)
+}
+
+stop
+
+@enduml

@@ -215,7 +215,7 @@ export const CalendarView: React.FC<CalendarProps> = ({ notes, onNoteClick, rese
                         onTouchStart={onTouchStart}
                         onTouchMove={onTouchMove}
                         onTouchEnd={onTouchEnd}
-                        style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: isMobile ? '0.5rem' : '1rem', overflowY: 'auto' }}
+                        style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: isMobile ? '0.5rem' : '1rem', overflowY: 'auto', position: 'relative', zIndex: 1 }}
                     >
                         <header style={{
                             display: 'flex',
@@ -223,7 +223,7 @@ export const CalendarView: React.FC<CalendarProps> = ({ notes, onNoteClick, rese
                             alignItems: 'center',
                             marginBottom: isMobile ? '1rem' : '1.5rem',
                             maxWidth: '900px',
-                            margin: isMobile ? '3rem auto 1rem auto' : '0 auto 1.5rem auto', // 3rem top on mobile for hamburger
+                            margin: isMobile ? 'calc(var(--safe-top) + 0.5rem) auto 1rem auto' : '0 auto 1.5rem auto',
                             width: '100%',
                             padding: isMobile ? '0 0.5rem' : '0'
                         }}>
@@ -300,53 +300,134 @@ export const CalendarView: React.FC<CalendarProps> = ({ notes, onNoteClick, rese
                                 gap: '1rem'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                    <div style={{ padding: '0.4rem', borderRadius: '10px', background: '#fffbeb', display: 'flex' }}>
-                                        <Star size={18} fill="#f59e0b" color="#f59e0b" />
+                                    <div style={{
+                                        width: 36, height: 36,
+                                        borderRadius: '12px',
+                                        background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
+                                    }}>
+                                        <Star size={18} fill="white" color="white" />
                                     </div>
-                                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Month's Favourites</h3>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>Month's Favourites</h3>
                                 </div>
 
                                 {favoriteNotesThisMonth.length > 0 ? (
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '1rem' }}>
-                                        {favoriteNotesThisMonth.map(note => (
-                                            <motion.div
-                                                key={note.id}
-                                                whileTap={{ scale: 0.98 }}
-                                                onClick={() => onNoteClick(note)}
-                                                className={`note-color-${note.color || 'default'}`}
-                                                style={{
-                                                    padding: '1.25rem',
-                                                    borderRadius: '20px',
-                                                    background: 'rgba(255, 255, 255, 0.4)',
-                                                    backdropFilter: 'blur(10px)',
-                                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                                    boxShadow: 'var(--shadow-soft)',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '0.5rem',
-                                                    position: 'relative',
-                                                    overflow: 'hidden'
-                                                }}
-                                            >
-                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-primary)', opacity: 0.6 }} />
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                    <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{note.title}</h4>
-                                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>{format(new Date(note.createdAt), 'MMM d')}</span>
-                                                </div>
-                                                <p style={{
-                                                    fontSize: '0.85rem',
-                                                    color: 'var(--text-secondary)',
-                                                    margin: 0,
-                                                    lineHeight: 1.4,
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical',
-                                                    overflow: 'hidden'
-                                                }}>
-                                                    {note.content.replace(/<[^>]*>/g, '').substring(0, 100)}...
-                                                </p>
-                                            </motion.div>
-                                        ))}
+                                        {favoriteNotesThisMonth.map((note, idx) => {
+                                            const bgColors = theme === 'dark' ? [
+                                                'rgba(14, 165, 233, 0.15)', // Cyan
+                                                'rgba(34, 197, 94, 0.15)', // Green
+                                                'rgba(244, 63, 94, 0.15)', // Rose
+                                                'rgba(234, 179, 8, 0.15)'  // Yellow
+                                            ] : [
+                                                'rgba(14, 165, 233, 0.1)',
+                                                'rgba(34, 197, 94, 0.1)',
+                                                'rgba(244, 63, 94, 0.1)',
+                                                'rgba(234, 179, 8, 0.1)'
+                                            ];
+                                            const borderColors = theme === 'dark' ? [
+                                                'rgba(14, 165, 233, 0.4)',
+                                                'rgba(34, 197, 94, 0.4)',
+                                                'rgba(244, 63, 94, 0.4)',
+                                                'rgba(234, 179, 8, 0.4)'
+                                            ] : [
+                                                'rgba(14, 165, 233, 0.3)',
+                                                'rgba(34, 197, 94, 0.3)',
+                                                'rgba(244, 63, 94, 0.3)',
+                                                'rgba(234, 179, 8, 0.3)'
+                                            ];
+                                            const bg = bgColors[idx % bgColors.length];
+                                            const border = borderColors[idx % borderColors.length];
+
+                                            // Content preview logic matching Dashboard
+                                            const getContentPreview = (content: string) => {
+                                                const stripHtml = (html: string) => {
+                                                    const tmp = document.createElement('div');
+                                                    tmp.innerHTML = html;
+                                                    return tmp.textContent || tmp.innerText || '';
+                                                };
+                                                if (!content) return 'No content yet...';
+                                                try {
+                                                    if (content.trim().startsWith('{')) {
+                                                        const parsed = JSON.parse(content);
+                                                        if (parsed._journalV2) {
+                                                            const mainPart = parsed.mainContent || '';
+                                                            const blockPart = (parsed.textBlocks || []).map((b: any) => b.content).join(' ');
+                                                            return stripHtml(mainPart + ' ' + blockPart).substring(0, 100);
+                                                        }
+                                                    }
+                                                } catch (e) { }
+                                                return stripHtml(content).substring(0, 100);
+                                            };
+
+                                            return (
+                                                <motion.div
+                                                    key={note.id}
+                                                    whileHover={{ scale: 1.02, y: -4 }}
+                                                    whileTap={{ scale: 0.98 }}
+                                                    onClick={() => onNoteClick(note)}
+                                                    style={{
+                                                        padding: '1.5rem',
+                                                        borderRadius: '24px',
+                                                        background: bg,
+                                                        backdropFilter: 'blur(16px)',
+                                                        border: `1px solid ${border}`,
+                                                        boxShadow: theme === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.05)',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        justifyContent: 'space-between',
+                                                        height: '160px',
+                                                        position: 'relative',
+                                                        overflow: 'hidden'
+                                                    }}
+                                                >
+                                                    <div>
+                                                        <h4 style={{
+                                                            fontSize: '1.1rem',
+                                                            fontWeight: 700,
+                                                            color: 'var(--text-primary)',
+                                                            margin: '0 0 0.5rem 0',
+                                                            textShadow: theme === 'dark' ? '0 1px 2px rgba(0,0,0,0.2)' : 'none'
+                                                        }}>
+                                                            {note.title || 'Untitled Note'}
+                                                        </h4>
+                                                        <p style={{
+                                                            fontSize: '0.85rem',
+                                                            color: 'var(--text-secondary)',
+                                                            margin: 0,
+                                                            lineHeight: 1.4,
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 2,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden'
+                                                        }}>
+                                                            {getContentPreview(note.content)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                                            {format(new Date(note.createdAt), 'MMMM d')}
+                                                        </span>
+                                                        <div style={{
+                                                            background: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                                                            backdropFilter: 'blur(10px)',
+                                                            border: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}`,
+                                                            padding: '0.2rem 0.6rem',
+                                                            borderRadius: '12px',
+                                                            fontSize: '0.65rem',
+                                                            color: 'var(--text-primary)',
+                                                            fontWeight: 700,
+                                                            textTransform: 'uppercase',
+                                                            letterSpacing: '0.05em'
+                                                        }}>
+                                                            Favorite
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div style={{
@@ -694,21 +775,24 @@ const TimelineView: React.FC<{
                                 </div>
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <button
+                                    <motion.button
                                         onClick={onHourlyClick}
                                         style={{
                                             padding: '0.75rem',
-                                            background: 'rgba(99, 102, 241, 0.1)',
+                                            background: 'rgba(14, 165, 233, 0.1)',
                                             borderRadius: '50%',
-                                            color: 'var(--accent-primary)',
+                                            color: '#0ea5e9',
                                             cursor: 'pointer',
-                                            border: '1px solid rgba(99, 102, 241, 0.2)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                            border: '1px solid rgba(14, 165, 233, 0.2)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            transition: 'all 0.2s'
                                         }}
+                                        whileHover={{ scale: 1.05, background: 'rgba(14, 165, 233, 0.15)' }}
+                                        whileTap={{ scale: 0.95 }}
                                         title="View Hourly Journey"
                                     >
                                         <Clock size={20} />
-                                    </button>
+                                    </motion.button>
                                     <button
                                         onClick={() => onClose()}
                                         style={{
@@ -744,7 +828,7 @@ const TimelineView: React.FC<{
                                         marginBottom: '1rem',
                                         display: 'flex', alignItems: 'center', gap: '0.5rem'
                                     }}>
-                                        <CheckSquare size={16} /> Tasks
+                                        <CheckSquare size={16} /> Todos
                                     </h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                         {todos.map(todo => (
@@ -826,8 +910,8 @@ const TimelineView: React.FC<{
                                                     style={{
                                                         padding: '1rem',
                                                         borderRadius: '16px',
-                                                        background: theme === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(238, 242, 255, 0.8)',
-                                                        border: `1px solid ${theme === 'dark' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)'}`,
+                                                        background: theme === 'dark' ? 'rgba(14, 165, 233, 0.15)' : 'rgba(240, 250, 255, 0.85)',
+                                                        border: `1px solid ${theme === 'dark' ? 'rgba(14, 165, 233, 0.3)' : 'rgba(14, 165, 233, 0.2)'}`,
                                                         color: 'var(--text-primary)',
                                                         fontSize: '0.9rem',
                                                         lineHeight: 1.5,
@@ -879,9 +963,9 @@ const TimelineView: React.FC<{
                                                     animate={{
                                                         opacity: 1,
                                                         x: 0,
-                                                        scale: 1,
-                                                        backgroundColor: theme === 'dark' ? 'rgba(250, 204, 21, 0.4)' : 'rgba(254, 252, 232, 0.95)',
-                                                        borderColor: theme === 'dark' ? 'rgba(250, 204, 21, 0.6)' : 'rgba(253, 224, 71, 0.5)'
+                                                        backgroundColor: theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.65)',
+                                                        borderColor: theme === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.8)',
+                                                        border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`
                                                     }}
                                                     onClick={(e) => onNoteClick(note, e)}
                                                     style={{
@@ -903,8 +987,8 @@ const TimelineView: React.FC<{
                                                     whileHover={{
                                                         y: -4,
                                                         backgroundColor: theme === 'dark'
-                                                            ? 'rgba(250, 204, 21, 0.5)'
-                                                            : 'rgba(250, 204, 21, 0.4)', // Rich yellow on hover
+                                                            ? 'rgba(99, 102, 241, 0.15)'
+                                                            : 'rgba(255, 255, 255, 0.85)',
                                                         boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
                                                     }}
                                                     whileTap={{ scale: 0.98 }}
@@ -1008,10 +1092,10 @@ const TimelineView: React.FC<{
                                                 </button>
                                                 <button
                                                     onClick={() => {
-                                                        saveLog(editingHour, editValue);
+                                                        saveLog(editingHour!, editValue);
                                                         setEditingHour(null);
                                                     }}
-                                                    style={{ flex: 1, padding: '0.75rem', borderRadius: '12px', background: 'var(--accent-primary)', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer' }}
+                                                    style={{ flex: 1, padding: '0.75rem', borderRadius: '12px', background: 'linear-gradient(135deg, #0ea5e9, #22c55e)', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 15px rgba(14, 165, 233, 0.3)' }}
                                                 >
                                                     Save Log
                                                 </button>

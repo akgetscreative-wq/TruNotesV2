@@ -186,6 +186,7 @@ extern "C"
 JNIEXPORT jstring JNICALL
 Java_com_trunotes_v2_plugins_AIBridge_nativeGenerate(JNIEnv *env, jobject thiz, jstring prompt, jint nPredict, jfloat temperature, jint topK, jfloat topP, jfloat penalty) {
     std::lock_guard<std::mutex> lock(g_mutex);
+    g_stop_generation = false; // Reset stop flag for new generation
     
     if (!g_model || !g_context) {
         return env->NewStringUTF("Error: Model not loaded");
@@ -275,6 +276,12 @@ Java_com_trunotes_v2_plugins_AIBridge_nativeGenerate(JNIEnv *env, jobject thiz, 
                 common_batch_add(batch, tokens_list[i + j], (int)(i + j), { 0 }, is_last_token);
             }
 
+            if (g_stop_generation) {
+                LOGi("Generation stopped during prefill");
+                llama_batch_free(batch);
+                return env->NewStringUTF(""); // Return empty immediately
+            }
+
             if (llama_decode(g_context, batch) != 0) {
                 LOGe("llama_decode failed during prefill");
                 llama_batch_free(batch);
@@ -322,7 +329,6 @@ Java_com_trunotes_v2_plugins_AIBridge_nativeGenerate(JNIEnv *env, jobject thiz, 
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     const llama_vocab * vocab = vocab_obj; // Reuse
-    g_stop_generation = false;
     
     // Track what we generate to append to g_past_tokens for next turn
     std::vector<llama_token> generated_tokens;

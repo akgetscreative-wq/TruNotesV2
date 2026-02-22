@@ -40,7 +40,7 @@ export const HourlyLogSummary: React.FC<HourlyLogSummaryProps> = ({ date, onClic
                     onClick={onClickTitle}
                     style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: onClickTitle ? 'pointer' : 'default' }}
                 >
-                    <Clock size={24} color="var(--accent-primary)" />
+                    <Clock size={24} color="#0ea5e9" />
                     Hourly Journey
                 </motion.h2>
                 {!isMobile && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Focus Window</span>}
@@ -70,20 +70,22 @@ export const HourlyLogSummary: React.FC<HourlyLogSummaryProps> = ({ date, onClic
                                 setEditValue(logs[hour] || '');
                             }}
                             style={{
-                                background: isCurrent ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.03)',
+                                background: isCurrent ? 'rgba(14, 165, 233, 0.1)' : 'rgba(255,255,255,0.03)',
                                 padding: '0.85rem 1rem',
                                 borderRadius: '16px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '1rem',
-                                border: `1px solid ${isCurrent ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)'} `,
-                                cursor: 'pointer'
+                                border: `1px solid ${isCurrent ? 'rgba(14, 165, 233, 0.3)' : 'rgba(255,255,255,0.05)'} `,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                boxShadow: isCurrent ? '0 4px 15px rgba(14, 165, 233, 0.1)' : 'none'
                             }}
                         >
                             <span style={{
                                 fontSize: '0.75rem',
                                 fontWeight: 800,
-                                color: isCurrent ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                color: isCurrent ? '#0ea5e9' : 'var(--text-muted)',
                                 minWidth: '65px'
                             }}>
                                 {formatHour(hour)}
@@ -133,7 +135,7 @@ export const HourlyLogSummary: React.FC<HourlyLogSummaryProps> = ({ date, onClic
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
-                                    Editing {formatHour(editingHour)}
+                                    Editing {formatHour(editingHour!)}
                                 </h3>
                                 <button onClick={() => setEditingHour(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                                     <X size={20} />
@@ -155,14 +157,15 @@ export const HourlyLogSummary: React.FC<HourlyLogSummaryProps> = ({ date, onClic
                             />
                             <button
                                 onClick={() => {
-                                    saveLog(editingHour, editValue);
+                                    saveLog(editingHour!, editValue);
                                     setEditingHour(null);
                                 }}
                                 style={{
                                     width: '100%', padding: '0.85rem', borderRadius: '14px',
-                                    background: 'var(--accent-primary)', border: 'none',
+                                    background: 'linear-gradient(135deg, #0ea5e9, #22c55e)', border: 'none',
                                     color: 'white', fontWeight: 700, cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                                    boxShadow: '0 4px 15px rgba(14, 165, 233, 0.3)'
                                 }}
                             >
                                 <Save size={18} />
@@ -172,6 +175,6 @@ export const HourlyLogSummary: React.FC<HourlyLogSummaryProps> = ({ date, onClic
                     </div>
                 )}
             </AnimatePresence>
-        </section>
+        </section >
     );
 };

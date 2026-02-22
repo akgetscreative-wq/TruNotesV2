@@ -28,11 +28,21 @@ export const NoteList: React.FC<NoteListProps> = ({
 
     const handleContextMenu = (e: React.MouseEvent, note: Note) => {
         e.preventDefault();
-        setContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            noteId: note.id
-        });
+
+        let x = e.clientX;
+        let y = e.clientY;
+
+        const menuWidth = 220;
+        const menuHeight = 250; // Approximate height of the popup
+
+        if (x + menuWidth > window.innerWidth) {
+            x = window.innerWidth - menuWidth - 20;
+        }
+        if (y + menuHeight > window.innerHeight) {
+            y = window.innerHeight - menuHeight - 20;
+        }
+
+        setContextMenu({ x, y, noteId: note.id });
     };
 
     if (loading) {
@@ -73,7 +83,7 @@ export const NoteList: React.FC<NoteListProps> = ({
                     backdropFilter: 'blur(10px)',
                     borderRadius: isMobile ? '20px' : '32px',
                     border: '1px solid var(--border-subtle)',
-                    marginTop: isMobile ? '3rem' : '1rem', // Space for hamburger
+                    margin: isMobile ? 'calc(var(--safe-top) + 1.5rem) auto 1rem auto' : '0 auto 1.5rem auto',
                     minHeight: isMobile ? 'auto' : '60vh',
                     boxShadow: 'var(--shadow-soft)',
                     paddingBottom: '5rem'

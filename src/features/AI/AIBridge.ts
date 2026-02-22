@@ -17,6 +17,7 @@ export interface AIBridgePlugin {
     }): Promise<{ started: boolean }>;
     stopGenerate(): Promise<void>;
     unloadModel(): Promise<void>;
+    pickModel(): Promise<{ name: string, path: string }>;
     addListener(eventName: 'token', listenerFunc: (data: { token: string }) => void): Promise<any>;
     addListener(eventName: 'modelStatus', listenerFunc: (data: { status: string, path?: string, message?: string }) => void): Promise<any>;
     addListener(eventName: 'done', listenerFunc: (data: { fullResponse: string }) => void): Promise<any>;

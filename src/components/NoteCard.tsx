@@ -67,20 +67,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
             }}
         >
 
-            {/* Emotional Indicator - Minimal Dot */}
-            {note.mood && (
-                <div style={{
-                    position: 'absolute',
-                    top: isMobile ? '0.5rem' : '1rem',
-                    right: isMobile ? '0.5rem' : '1rem',
-                    fontSize: isMobile ? '0.7rem' : '1rem',
-                    opacity: 0.6,
-                    filter: 'grayscale(0.3)',
-                    zIndex: 10
-                }}>
-                    {note.mood}
-                </div>
-            )}
 
             {note.type === 'drawing' ? (
                 <div style={{
@@ -146,7 +132,22 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                         WebkitBoxOrient: 'vertical',
                         opacity: 0.9
                     }}>
-                        {note.content ? note.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : 'Empty note...'}
+                        {(() => {
+                            if (!note.content) return 'Empty note...';
+                            try {
+                                if (note.content.trim().startsWith('{')) {
+                                    const parsed = JSON.parse(note.content);
+                                    if (parsed._journalV2) {
+                                        // Combine main content and text blocks for preview
+                                        const mainPart = parsed.mainContent || '';
+                                        const blockPart = (parsed.textBlocks || []).map((b: any) => b.content).join(' ');
+                                        const combined = (mainPart + ' ' + blockPart).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                                        return combined || 'Blank Journal Entry';
+                                    }
+                                }
+                            } catch (e) { /* ignore */ }
+                            return note.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                        })()}
                     </p>
                 </>
             )}

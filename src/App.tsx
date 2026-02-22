@@ -1,10 +1,11 @@
 import { App as CapacitorApp } from '@capacitor/app';
 import { Preferences } from '@capacitor/preferences';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './features/NoteList';
-import { Editor } from './features/Editor';
+import { JournalEditor } from './features/JournalEditor';
 import { TodoList } from './features/Todo/TodoList';
 import { CalendarView } from './features/Calendar/CalendarView';
 import { Dashboard } from './features/Dashboard';
@@ -13,6 +14,7 @@ import { TomorrowView } from './features/Todo/TomorrowView';
 import type { Note } from './types';
 import { useNotes } from './hooks/useNotes';
 import { getJournalBackgroundPath } from './utils/assetLoader';
+import bgImage from './assets/main-bg.png';
 import { DeleteModal } from './components/DeleteModal';
 import { Search, PenTool, AlertCircle, CheckCircle } from 'lucide-react';
 import { ScribbleEditor } from './features/Scribble/ScribbleEditor';
@@ -40,7 +42,7 @@ function AuthenticatedApp() {
   useWidgetSync();
   const { notes, loading, addNote, updateNote, deleteNote, saveReorder } = useNotes();
   const { isAuthenticated, logout } = useAuth();
-  const { journalBg: customJournalBg, bgDarknessLight, bgDarknessDark, tasksBg, tomorrowBg, bgBlurLight, bgBlurDark } = useSettings();
+  const { journalBg: customJournalBg, bgDarknessLight, bgDarknessDark, tasksBg, tomorrowBg, bgBlurLight, bgBlurDark, dashboardBg } = useSettings();
   const { theme } = useThemeContext();
 
   const currentBgDarkness = theme === 'dark' ? bgDarknessDark : bgDarknessLight;
@@ -49,11 +51,14 @@ function AuthenticatedApp() {
   const [view, setView] = useState<'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai'>('dashboard');
   const [activeNote, setActiveNote] = useState<Note | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
+  const [autoFocusTask, setAutoFocusTask] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [resetKey, setResetKey] = useState(0);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [showExitToast, setShowExitToast] = useState(false);
+  const savedScrollPos = useRef(0);
+  const viewHistory = useRef<string[]>([]);
 
   // Pull to Refresh State
   const [pullStart, setPullStart] = useState(0);
@@ -89,7 +94,8 @@ function AuthenticatedApp() {
       const handle = await CapacitorApp.addListener('backButton', () => {
         const { activeNote, isCreating, view, isDeleteModalOpen } = stateRef.current;
         if (isDeleteModalOpen) { setIsDeleteModalOpen(false); return; }
-        if (activeNote || isCreating) { setActiveNote(undefined); setIsCreating(false); return; }
+        if (activeNote || isCreating) { setActiveNote(undefined); setIsCreating(false); restoreScroll(); return; }
+        if (viewHistory.current.length > 0) { const prev = viewHistory.current.pop()!; setView(prev as any); return; }
         if (view !== 'dashboard') { setView('dashboard'); return; }
         const now = Date.now();
         if (now - lastBackPress < 2000) { CapacitorApp.exitApp(); }
@@ -167,18 +173,59 @@ function AuthenticatedApp() {
   if (!isAuthenticated) return <LoginPage />;
 
   const activeBgImage = (() => {
-    if (activeNote || isCreating || view === 'journal' || view === 'favorites') return customJournalBg || defaultJournalBg;
-    if (view === 'tasks') return tasksBg;
-    if (view === 'tomorrow') return tomorrowBg;
+    const journalBg = customJournalBg || defaultJournalBg;
+    if (activeNote || isCreating || view === 'journal' || view === 'favorites') return journalBg;
+    if (view === 'tasks') return tasksBg || journalBg;
+    if (view === 'tomorrow') return tomorrowBg || journalBg;
+    if (view === 'dashboard') return dashboardBg || (typeof bgImage === 'string' ? bgImage : '') || null;
     return null;
   })();
 
   const filteredNotes = notes.filter(n => (n.title.toLowerCase().includes(searchQuery.toLowerCase()) || n.content.toLowerCase().includes(searchQuery.toLowerCase())) && (view === 'favorites' ? n.isFavorite : true));
 
+  const saveScroll = () => {
+    const main = document.querySelector('main');
+    if (main) savedScrollPos.current = main.scrollTop;
+  };
+
+  const restoreScroll = () => {
+    let attempts = 0;
+    const maxAttempts = 10; // Up to 1 second of retries
+
+    const tryRestore = () => {
+      const main = document.querySelector('main');
+      if (main) {
+        // Attempt restoration
+        if (savedScrollPos.current > 0) {
+          main.scrollTop = savedScrollPos.current;
+
+          // Verify if it stuck. If not, the content might not be in the DOM yet.
+          const delta = Math.abs(main.scrollTop - savedScrollPos.current);
+          if (delta > 5 && attempts < maxAttempts) {
+            attempts++;
+            requestAnimationFrame(() => setTimeout(tryRestore, 50));
+            return;
+          }
+        }
+      } else if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(tryRestore, 50);
+      }
+    };
+
+    // Initial delay to allow AnimatePresence to start the swap
+    setTimeout(tryRestore, 100);
+  };
+
+  const openNote = (note: Note | undefined) => {
+    saveScroll();
+    setActiveNote(note);
+  };
+
   const handleSave = async (title: string, content: string, data: Partial<Note>, shouldExit: boolean = true) => {
     if (activeNote && notes.some(n => n.id === activeNote.id)) await updateNote(activeNote.id, { title, content, ...data });
     else { const n = await addNote(title, content, { isFavorite: view === 'favorites', ...data }); if (!shouldExit) { setActiveNote(n); setIsCreating(false); } }
-    if (shouldExit) { setActiveNote(undefined); setIsCreating(false); }
+    if (shouldExit) { setActiveNote(undefined); setIsCreating(false); restoreScroll(); }
   };
 
   const confirmDelete = async () => { if (noteToDelete) { await deleteNote(noteToDelete); setNoteToDelete(null); setIsDeleteModalOpen(false); setActiveNote(undefined); setIsCreating(false); if (view !== 'favorites' && view !== 'dashboard') setView('journal'); } };
@@ -192,8 +239,8 @@ function AuthenticatedApp() {
     >
       <Layout
         isFocusedContent={!!activeNote || isCreating}
-        disableGlobalSwipe={view === 'calendar' || view === 'ai' || activeNote?.type === 'drawing'}
-        sidebar={<Sidebar currentView={view} onChangeView={(v) => { if (v === view) setResetKey(p => p + 1); else setView(v); setActiveNote(undefined); setIsCreating(false); }} onLogout={logout} />}
+        disableGlobalSwipe={!!activeNote || view === 'calendar' || view === 'ai'}
+        sidebar={<Sidebar currentView={view} onChangeView={(v) => { if (v === view) setResetKey(p => p + 1); else { viewHistory.current.push(view); setView(v); } setActiveNote(undefined); setIsCreating(false); setAutoFocusTask(false); }} onLogout={logout} />}
       >
         <SyncManager />
 
@@ -230,24 +277,24 @@ function AuthenticatedApp() {
         </AnimatePresence>
 
         <AnimatePresence>{showExitToast && (<motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} style={{ position: 'fixed', bottom: '40px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.8)', color: 'white', padding: '0.8rem 1.5rem', borderRadius: '24px', zIndex: 10000 }}>Press back again to exit</motion.div>)}</AnimatePresence>
-        {activeBgImage && (<><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 0, backgroundImage: `url(${activeBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }} /><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 0, background: theme === 'dark' ? `rgba(15, 23, 42, ${currentBgDarkness})` : `rgba(255, 255, 255, ${currentBgDarkness})`, backdropFilter: `blur(${currentBgBlur}px)` }} /></>)}
+        {activeBgImage && (<><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 0, backgroundImage: `url(${activeBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center', pointerEvents: 'none' }} /><div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 0, background: theme === 'dark' ? `rgba(15, 23, 42, ${currentBgDarkness})` : `rgba(255, 255, 255, ${currentBgDarkness})`, backdropFilter: `blur(${currentBgBlur}px)`, pointerEvents: 'none' }} /></>)}
 
         <AnimatePresence mode="wait">
           {activeNote || isCreating ? (
             <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', height: '100%' }}>
               {activeNote?.type === 'drawing' ?
-                <ScribbleEditor note={activeNote} onSave={(n: Note) => handleSave(n.title, n.content, { type: 'drawing', ...n }, false)} onClose={() => { setActiveNote(undefined); setIsCreating(false); }} onDelete={() => { setNoteToDelete(activeNote.id); setIsDeleteModalOpen(true); }} /> :
-                <Editor note={activeNote} onSave={handleSave} onBack={() => { setActiveNote(undefined); setIsCreating(false); }} onDelete={activeNote ? () => { setNoteToDelete(activeNote.id); setIsDeleteModalOpen(true); } : undefined} />
+                <ScribbleEditor note={activeNote} onSave={(n: Note) => handleSave(n.title, n.content, { type: 'drawing', ...n }, false)} onClose={() => { setActiveNote(undefined); setIsCreating(false); restoreScroll(); }} onDelete={() => { setNoteToDelete(activeNote.id); setIsDeleteModalOpen(true); }} /> :
+                <JournalEditor note={activeNote} onSave={handleSave} onBack={() => { setActiveNote(undefined); setIsCreating(false); restoreScroll(); }} onDelete={activeNote ? () => { setNoteToDelete(activeNote.id); setIsDeleteModalOpen(true); } : undefined} />
               }
             </motion.div>
           ) : (
             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', height: '100%' }}>
               {(() => {
                 switch (view) {
-                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={setActiveNote} onReorder={saveReorder} onNewNote={() => { setActiveNote(undefined); setIsCreating(true); }} onViewCalendar={() => setView('calendar')} onViewJournal={() => setView('journal')} onViewTasks={() => setView('tasks')} onViewFavorites={() => setView('favorites')} onViewAI={() => setView('ai')} />;
+                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={openNote} onReorder={saveReorder} onNewNote={() => { openNote(undefined); setIsCreating(true); }} onViewCalendar={() => { viewHistory.current.push(view); setView('calendar'); }} onViewJournal={() => { viewHistory.current.push(view); setView('journal'); }} onViewTasks={() => { viewHistory.current.push(view); setView('tasks'); }} onViewFavorites={() => { viewHistory.current.push(view); setView('favorites'); }} onViewAI={() => { viewHistory.current.push(view); setView('ai'); }} onNewTask={() => { setAutoFocusTask(true); viewHistory.current.push(view); setView('tasks'); }} />;
                   case 'tomorrow': return <TomorrowView />;
-                  case 'tasks': return <TodoList />;
-                  case 'calendar': return <CalendarView notes={notes} onNoteClick={setActiveNote} resetTrigger={resetKey} />;
+                  case 'tasks': return <TodoList autoFocusInput={autoFocusTask} onFocusComplete={() => setAutoFocusTask(false)} />;
+                  case 'calendar': return <CalendarView notes={notes} onNoteClick={openNote} resetTrigger={resetKey} />;
                   case 'timer': return <TimerView />;
                   case 'sync': return <SyncSettings />;
                   case 'settings': return <SettingsView />;
@@ -259,13 +306,13 @@ function AuthenticatedApp() {
                       <div style={{ height: '100%', position: 'relative' }}>
                         <div className="container" style={{ position: 'relative', zIndex: 1, padding: isMobile ? '3.5rem 1rem 1rem 1rem' : '2rem' }}>
                           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '1.5rem', gap: '1rem' }}>
-                            <h1 style={{ fontSize: isMobile ? '1.8rem' : '2.5rem', fontWeight: 800 }}>{view === 'favorites' ? 'Favorites' : 'Journal'}</h1>
+                            <h1 style={{ fontSize: isMobile ? '1.8rem' : '2.5rem', fontWeight: 800 }}>{view === 'favorites' ? 'Favorites' : 'Notes'}</h1>
                             <div style={{ display: 'flex', alignItems: 'center', width: isMobile ? '100%' : 'auto', gap: '0.5rem' }}>
-                              <button onClick={() => { setActiveNote({ id: crypto.randomUUID(), title: '', content: '', createdAt: Date.now(), updatedAt: Date.now(), type: 'drawing' }); setIsCreating(true); }} style={{ background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--accent-primary)', border: '1px solid var(--border-subtle)' }}><PenTool size={18} /> Scribble</button>
+                              <button onClick={() => { openNote({ id: crypto.randomUUID(), title: '', content: '', createdAt: Date.now(), updatedAt: Date.now(), type: 'drawing' }); setIsCreating(true); }} style={{ background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--accent-primary)', border: '1px solid var(--border-subtle)' }}><PenTool size={18} /> Scribble</button>
                               <div style={{ background: 'var(--bg-card)', padding: '0.5rem 0.75rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', maxWidth: '300px', border: '1px solid var(--border-subtle)' }}><Search size={18} color="var(--text-muted)" /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%' }} /></div>
                             </div>
                           </div>
-                          <NoteList notes={filteredNotes} loading={loading} onNoteClick={setActiveNote} onNewNote={() => { setActiveNote(undefined); setIsCreating(true); }} onDelete={(id) => { setNoteToDelete(id); setIsDeleteModalOpen(true); }} onDuplicate={(n) => addNote(`${n.title} (Copy)`, n.content, n)} onToggleFavorite={(n) => updateNote(n.id, { isFavorite: !n.isFavorite })} />
+                          <NoteList notes={filteredNotes} loading={loading} onNoteClick={openNote} onNewNote={() => { openNote(undefined); setIsCreating(true); }} onDelete={(id) => { setNoteToDelete(id); setIsDeleteModalOpen(true); }} onDuplicate={(n) => addNote(`${n.title} (Copy)`, n.content, n)} onToggleFavorite={(n) => updateNote(n.id, { isFavorite: !n.isFavorite })} />
                         </div>
                       </div>
                     );
@@ -292,6 +339,18 @@ function GlobalUI() {
 
     toastHandler = handler;
     (window as any).showToast = handler;
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button') || target.closest('a') || target.closest('.clickable')) {
+        Haptics.impact({ style: ImpactStyle.Light }).catch(() => { });
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
 
   return (
