@@ -735,13 +735,13 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({ note, onSave, onBa
 
             // Aggressive speed cap
             const maxPredict = Math.min(Math.ceil(plainText.length * 1.3) + 80, 500);
-            let result = await AIBridge.generate({ prompt, temperature: 0.15, n_predict: maxPredict, penalty: 1.3, top_k: 30, top_p: 0.85 });
+            let result: any = await (AIBridge as any).generateSync({ prompt, temperature: 0.15, n_predict: maxPredict, penalty: 1.3, top_k: 30, top_p: 0.85 });
 
             if (result.response.includes("Error: Model not loaded")) {
                 const loadLast = await AIBridge.getLastModelPath();
                 if (loadLast.path) {
                     await AIBridge.loadModel({ path: loadLast.path, threads: 6 });
-                    result = await AIBridge.generate({ prompt, temperature: 0.15, n_predict: maxPredict, penalty: 1.3, top_k: 30, top_p: 0.85 });
+                    result = await (AIBridge as any).generateSync({ prompt, temperature: 0.15, n_predict: maxPredict, penalty: 1.3, top_k: 30, top_p: 0.85 });
                 } else {
                     throw new Error("No model loaded. Go to Akitsu and load a model first.");
                 }

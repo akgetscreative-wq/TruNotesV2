@@ -181,7 +181,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                 borderTop: '1px solid rgba(0,0,0,0.03)'
             }}>
                 <Calendar size={12} />
-                <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
+                <span>{new Date(note.createdAt).toLocaleDateString()}</span>
                 {note.isFavorite && (
                     <div style={{ marginLeft: 'auto', color: '#f59e0b' }}>
                         <Star size={14} fill="#f59e0b" />
