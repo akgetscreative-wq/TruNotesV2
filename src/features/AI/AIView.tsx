@@ -1140,28 +1140,17 @@ export const AIView: React.FC = () => {
     // Initial check for existing models
     useEffect(() => {
         const checkExisting = async () => {
-            // Snapshot current models to check
-            const currentModels = inMemoryModels || models;
-            let modifications = false;
-
-            const updatedModels = await Promise.all(currentModels.map(async (model) => {
+            models.forEach(async (model) => {
                 if (model.status === 'idle') {
                     try {
                         const filename = `${model.id}.gguf`;
                         const res = await AIBridge.getModelPath({ filename });
                         if (res.exists && res.size > 0) {
-                            modifications = true;
-                            return { ...model, status: 'downloaded' as const };
+                            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloaded' } : m));
                         }
                     } catch (e) { }
                 }
-                return model;
-            }));
-
-            if (modifications) {
-                setModels(updatedModels);
-                inMemoryModels = updatedModels;
-            }
+            });
         };
         checkExisting();
     }, []);
