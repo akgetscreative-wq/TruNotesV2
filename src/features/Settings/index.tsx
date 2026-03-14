@@ -1,10 +1,52 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Image as ImageIcon, Plus, Trash2, Home, Monitor, Book, User, Shield, Moon, Sun, Database, AlertTriangle, CheckSquare, Coffee, Fingerprint, Info, Heart, Code, Terminal } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeContext } from '../../context/ThemeContext';
 import { defaultContextScript } from './AIDefaultContextScript';
 import { defaultActionScript } from './AIDefaultActionScript';
+
+// ── Autostart Toggle (Electron only) ──
+const AutostartToggle: React.FC = () => {
+    const [autostart, setAutostart] = useState(false);
+
+    useEffect(() => {
+        const electron = (window as any).electron;
+        if (electron?.getAutostart) {
+            electron.getAutostart().then((v: boolean) => setAutostart(v));
+        }
+    }, []);
+
+    const toggle = () => {
+        const next = !autostart;
+        setAutostart(next);
+        (window as any).electron?.setAutostart?.(next);
+    };
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '400px' }}>
+            <div>
+                <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Start with Windows</div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Launch widget automatically on PC startup</div>
+            </div>
+            <button
+                onClick={toggle}
+                style={{
+                    width: '50px', height: '26px', borderRadius: '13px',
+                    background: autostart ? '#10b981' : 'rgba(0,0,0,0.3)',
+                    position: 'relative', border: 'none', cursor: 'pointer', padding: 0,
+                }}
+            >
+                <div style={{
+                    width: '20px', height: '20px', borderRadius: '50%', background: 'white',
+                    position: 'absolute', top: '3px',
+                    left: autostart ? '27px' : '3px',
+                    transition: 'left 0.2s ease',
+                }} />
+            </button>
+        </div>
+    );
+};
 
 export const SettingsView: React.FC = () => {
     const {
@@ -839,7 +881,37 @@ When asked to add, create, edit, delete, log, or manage anything, ALWAYS use the
                 />
             </div>
 
+            {/* Desktop Widget Settings - Electron Only */}
+            {(window as any).electron && (
+                <div style={sectionStyle}>
+                    <h2 style={titleStyle}><Monitor size={24} color="#10b981" /> Desktop Widget</h2>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Toggle Widget */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '400px' }}>
+                            <div>
+                                <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Show Widget</div>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Toggle task widget on desktop</div>
+                            </div>
+                            <button
+                                onClick={() => (window as any).electron?.toggleWidget?.()}
+                                style={{
+                                    padding: '0.5rem 1.25rem', borderRadius: '10px',
+                                    background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+                                    color: 'white', border: 'none', fontWeight: 600,
+                                    cursor: 'pointer', fontSize: '0.85rem',
+                                }}
+                            >Toggle</button>
+                        </div>
+
+                        {/* Autostart */}
+                        <AutostartToggle />
+                    </div>
+                </div>
+            )}
+
             {/* AI Developer Code Editor Section */}
+
             <div style={sectionStyle}>
                 <h2 style={titleStyle}><Code size={24} color="#a855f7" /> AI Developer Options</h2>
                 {!isDevUnlocked ? (
@@ -979,7 +1051,7 @@ When asked to add, create, edit, delete, log, or manage anything, ALWAYS use the
                                     localStorage.removeItem('AI_DEV_CONTEXT_SCRIPT');
                                     localStorage.removeItem('AI_DEV_ACTION_SCRIPT');
                                     setAiIdentityCode(`You are Akitsu — the user's sweet, capable personal AI companion built into TruNotes. You're warm, cheerful, and genuinely care about helping. You speak naturally like a close friend who happens to be incredibly organized and smart. {responseStyle} You have full access to the user's notes, tasks, and hourly logs. You can create, edit, delete, and manage everything in the app. Proactively offer help when you notice things. Be delightful.{appControlInstruction}`);
-                                    setAiAppControlCode(`\nYou have full control over the user's TruNotes app. When they ask you to manage anything, use these commands:\n- [CREATE_TASK: "task text"] — create a task for today\n- [CREATE_TASK: "task text" date="YYYY-MM-DD"] — create for a specific date\n- [COMPLETE_TASK: "task text"] — mark a task as done\n- [DELETE_TASK: "task text"] — delete a task\n- [CREATE_NOTE: title="Title" content="Content"] — create a new note\n- [EDIT_NOTE: title="Title" content="New content"] — edit a note\n- [DELETE_NOTE: "Title"] — delete a note\n- [TOGGLE_FAVORITE: "Title"] — toggle favorite on a note\n- [LOG_HOUR: hour=HH content="What happened"] — log an entry for a specific hour (0-23)\n- [SAVEMEM: "fact"] — remember something important about the user\nWhen asked to add, create, edit, delete, log, or manage anything, ALWAYS use these commands and briefly confirm what you did.`);
+                                    setAiAppControlCode(`\nYou have full control over the user's TruNotes app. When they ask you to manage anything, use these commands:\n- [CREATE_TASK: "task text"] — create a task for today\n- [CREATE_TASK: "task text" date="YYYY-MM-DD"] — create for a specific date\n- [COMPLETE_TASK: "task text"] — mark a task as done\n- [DELETE_TASK: "task text"] — delete a task\n- [CREATE_NOTE: title="Title" content="Content"] — create a new note\n- [EDIT_NOTE: title="Title" content="New content"] — edit a note\n- [DELETE_NOTE: "Title"] — delete a note\n- [TOGGLE_FAVORITE: "Title"] — toggle favorite on a note\n- [LOG_HOUR: hour=HH content="What happened"] — log an entry for a specific hour (0-23)\n- [SAVEMEM: "fact"] — remember something important about the user\n- [FORGET_MEM: "pattern"] — remove a specific persistent memory piece\n- [CLEAR_MEMS] — wipe all persistent memories\nWhen asked to add, create, edit, delete, log, or manage anything, ALWAYS use these commands and briefly confirm what you did.`);
                                     setAiContextCode(defaultContextScript);
                                     setAiActionCode(defaultActionScript);
                                     if ((window as any).showToast) (window as any).showToast('Restored to Factory Defaults', 'success');

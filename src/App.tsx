@@ -18,7 +18,8 @@ import bgImage from './assets/main-bg.png';
 import { DeleteModal } from './components/DeleteModal';
 import { Search, PenTool, AlertCircle, CheckCircle } from 'lucide-react';
 import { ScribbleEditor } from './features/Scribble/ScribbleEditor';
-import { AIView, resetAIHistory } from './features/AI/AIView';
+import { AIView } from './features/AI/AIView';
+import { NotebooksView } from './features/Notebooks/NotebooksView';
 // TruNotesAIView removed
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider } from './context/TimerContext';
@@ -48,7 +49,7 @@ function AuthenticatedApp() {
   const currentBgDarkness = theme === 'dark' ? bgDarknessDark : bgDarknessLight;
   const currentBgBlur = theme === 'dark' ? bgBlurLight : bgBlurDark;
 
-  const [view, setView] = useState<'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai'>('dashboard');
   const [activeNote, setActiveNote] = useState<Note | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
   const [autoFocusTask, setAutoFocusTask] = useState(false);
@@ -78,8 +79,7 @@ function AuthenticatedApp() {
   useEffect(() => {
     let lastBackPress = 0;
     const setupListener = async () => {
-      // Clear AI chat history on cold start (New Session)
-      resetAIHistory();
+      // AI chat history is now session-based and handled within AIView
 
       // Check for view hint from widgets
       const checkIntent = async () => {
@@ -291,7 +291,8 @@ function AuthenticatedApp() {
             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', height: '100%' }}>
               {(() => {
                 switch (view) {
-                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={openNote} onReorder={saveReorder} onNewNote={() => { openNote(undefined); setIsCreating(true); }} onViewCalendar={() => { viewHistory.current.push(view); setView('calendar'); }} onViewJournal={() => { viewHistory.current.push(view); setView('journal'); }} onViewTasks={() => { viewHistory.current.push(view); setView('tasks'); }} onViewFavorites={() => { viewHistory.current.push(view); setView('favorites'); }} onViewAI={() => { viewHistory.current.push(view); setView('ai'); }} onNewTask={() => { setAutoFocusTask(true); viewHistory.current.push(view); setView('tasks'); }} />;
+                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={openNote} onReorder={saveReorder} onNewNote={() => { openNote(undefined); setIsCreating(true); }} onViewCalendar={() => { viewHistory.current.push(view); setView('calendar'); }} onViewJournal={() => { viewHistory.current.push(view); setView('journal'); }} onViewTasks={() => { viewHistory.current.push(view); setView('tasks'); }} onViewFavorites={() => { viewHistory.current.push(view); setView('favorites'); }} onViewAI={() => { viewHistory.current.push(view); setView('ai'); }} onNewTask={() => { setAutoFocusTask(true); viewHistory.current.push(view); setView('tasks'); }} onViewNotebooks={() => { viewHistory.current.push(view); setView('notebooks'); }} />;
+                  case 'notebooks': return <NotebooksView />;
                   case 'tomorrow': return <TomorrowView />;
                   case 'tasks': return <TodoList autoFocusInput={autoFocusTask} onFocusComplete={() => setAutoFocusTask(false)} />;
                   case 'calendar': return <CalendarView notes={notes} onNoteClick={openNote} resetTrigger={resetKey} />;
@@ -378,7 +379,7 @@ function GlobalUI() {
 
 function App() {
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden', background: '#0f172a' }}>
       <ThemeProvider>
         <TimeProvider>
           <SettingsProvider>

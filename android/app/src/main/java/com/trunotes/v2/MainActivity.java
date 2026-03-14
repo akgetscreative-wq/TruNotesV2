@@ -32,6 +32,16 @@ public class MainActivity extends BridgeActivity {
             window.setNavigationBarColor(Color.TRANSPARENT);
         }
 
+        // Fix white flash when keyboard opens:
+        // Set the root view and window background to dark navy so no white
+        // gap is visible while Android animates the keyboard into position.
+        int darkBg = Color.parseColor("#0f172a");
+        window.getDecorView().setBackgroundColor(darkBg);
+        window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(darkBg));
+        
+        // Also set the WebView background once it's ready
+        getBridge().getWebView().setBackgroundColor(darkBg);
+
         handleIntent(getIntent());
     }
 

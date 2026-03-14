@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Todo } from '../types';
 import { storage } from '../lib/storage';
 import { format, addDays } from 'date-fns';
+import { generateEmbedding } from '../features/AI/embedding';
 
 let globalRefreshInProgress = false;
 
@@ -25,20 +26,20 @@ export function useTodos() {
             const newDailyTodos: Todo[] = [];
 
             for (const template of dailyTemplates) {
-                // Check if we already generated a task for this daily template today
-                // Also check if we just generated it in this loop (to avoid duplicates from templates)
                 const alreadyGenerated = allTodos.some(t => t.dailyParentId === template.id && t.targetDate === todayStr && !t.deleted) ||
                     newDailyTodos.some(t => t.dailyParentId === template.id);
 
                 if (!alreadyGenerated) {
+                    const vector = await generateEmbedding(template.text);
                     const newDailyTodo: Todo = {
                         id: crypto.randomUUID(),
                         text: template.text,
                         completed: false,
                         createdAt: Date.now(),
                         updatedAt: Date.now(),
-                        targetDate: todayStr, // Lock it to today
-                        dailyParentId: template.id // Link to original template
+                        targetDate: todayStr,
+                        dailyParentId: template.id,
+                        embedding: vector || undefined
                     };
                     newDailyTodos.push(newDailyTodo);
                 }
@@ -63,22 +64,22 @@ export function useTodos() {
 
     useEffect(() => {
         refreshTodos();
-        // Subscribe to changes (Sync merges, etc)
         const unsubscribe = storage.onDataChange(() => {
-            console.log("useTodos: Data change detected, refreshing...");
             refreshTodos();
         });
         return unsubscribe;
     }, [refreshTodos]);
 
     const addTodo = async (text: string, targetDate: string) => {
+        const vector = await generateEmbedding(text);
         const newTodo: Todo = {
             id: crypto.randomUUID(),
             text: text.trim(),
             completed: false,
             createdAt: Date.now(),
             updatedAt: Date.now(),
-            targetDate
+            targetDate,
+            embedding: vector || undefined
         };
         await storage.saveTodo(newTodo);
         await refreshTodos();

@@ -4,8 +4,8 @@ import { ThemeToggle } from './UI/ThemeToggle';
 import { useTheme } from '../hooks/useTheme';
 
 interface SidebarProps {
-    currentView: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai';
-    onChangeView: (view: 'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai') => void;
+    currentView: 'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai';
+    onChangeView: (view: 'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai') => void;
     onLogout: () => void;
     onClose?: () => void;
     dragX?: any; // The buttery smooth MotionValue from Layout
@@ -19,6 +19,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onL
 
     const allItems = [
         { id: 'dashboard', label: 'Home', icon: Home },
+        { id: 'notebooks', label: 'Notebooks', icon: Book },
         { id: 'tomorrow', label: 'Scheduled', icon: Coffee },
         { id: 'journal', label: 'Notes', icon: Book },
         { id: 'favorites', label: 'Star', icon: Star },

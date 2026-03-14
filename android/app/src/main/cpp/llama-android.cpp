@@ -94,26 +94,92 @@ static void log_callback(ggml_log_level level, const char * fmt, void * data) {
 // Global state
 static llama_model * g_model = nullptr;
 static llama_context * g_context = nullptr;
+static llama_model * g_embed_model = nullptr;
+static llama_context * g_embed_context = nullptr;
 static std::atomic<bool> g_stop_generation(false);
 static std::vector<llama_token> g_past_tokens;
 static std::mutex g_mutex;
 
 extern "C"
+JNIEXPORT jfloatArray JNICALL
+Java_com_trunotes_v2_plugins_AIBridge_nativeEmbed(JNIEnv *env, jobject thiz, jstring jtext) {
+    const char * text = env->GetStringUTFChars(jtext, 0);
+    std::string text_str(text);
+    env->ReleaseStringUTFChars(jtext, text);
+
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (!g_embed_model || !g_embed_context) {
+        LOGe("Embed model not loaded. Please load bge-small-en first.");
+        return nullptr;
+    }
+
+    // 1. Tokenize
+    std::vector<llama_token> tokens = common_tokenize(g_embed_context, text_str, true, true);
+    if (tokens.empty()) return nullptr;
+
+    // 2. Clear KV cache for fresh embedding if needed (usually embeddings don't need context history)
+    llama_memory_clear(llama_get_memory(g_embed_context), true);
+
+    // 3. Decode
+    llama_batch batch = llama_batch_init(tokens.size(), 0, 1);
+    for (size_t i = 0; i < tokens.size(); i++) {
+        common_batch_add(batch, tokens[i], (int)i, { 0 }, i == tokens.size() - 1);
+    }
+
+    if (llama_decode(g_embed_context, batch) != 0) {
+        LOGe("llama_decode failed in nativeEmbed");
+        llama_batch_free(batch);
+        return nullptr;
+    }
+
+    // 4. Retrieve embeddings
+    // bge-small-en uses pooling (usually MEAN or CLS). llama.cpp handles this if pooling_type is set.
+    float * emb = llama_get_embeddings(g_embed_context);
+    if (!emb) {
+        // Fallback or specific seq embedding
+        emb = llama_get_embeddings_seq(g_embed_context, 0);
+    }
+
+    if (!emb) {
+        LOGe("Failed to get embeddings from context");
+        llama_batch_free(batch);
+        return nullptr;
+    }
+
+    int n_embd = llama_model_n_embd(g_embed_model);
+    jfloatArray result = env->NewFloatArray(n_embd);
+    env->SetFloatArrayRegion(result, 0, n_embd, emb);
+
+    llama_batch_free(batch);
+    return result;
+}
+
+extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_trunotes_v2_plugins_AIBridge_nativeLoadModel(JNIEnv *env, jobject, jstring filename, jboolean use_mmap, jint n_threads) {
+Java_com_trunotes_v2_plugins_AIBridge_nativeLoadModel(JNIEnv *env, jobject, jstring filename, jboolean use_mmap, jint n_threads, jint n_gpu_layers, jint n_ctx_size) {
     std::lock_guard<std::mutex> lock(g_mutex);
     g_stop_generation = true; // Signal current to stop if any
 
-    // Cleanup previous if exists
-    if (g_context) {
-        llama_free(g_context);
+    auto path_to_model = env->GetStringUTFChars(filename, 0);
+    std::string path_str(path_to_model);
+    bool is_embedding_model = (path_str.find("bge-") != std::string::npos || path_str.find("embedding") != std::string::npos);
+
+    // Cleanup previous if exists for the correct slot
+    if (is_embedding_model) {
+        if (g_embed_context) llama_free(g_embed_context);
+        if (g_embed_model) llama_model_free(g_embed_model);
+        g_embed_context = nullptr;
+        g_embed_model = nullptr;
+        LOGi("Loading Embedding model: %s", path_to_model);
+    } else {
+        if (g_context) llama_free(g_context);
+        if (g_model) llama_model_free(g_model);
         g_context = nullptr;
-    }
-    if (g_model) {
-        llama_model_free(g_model);
         g_model = nullptr;
+        g_past_tokens.clear();
+        LOGi("Loading Generative model: %s", path_to_model);
     }
-    g_past_tokens.clear();
 
     // Initialize backend once
     static bool is_backend_initialized = false;
@@ -126,38 +192,49 @@ Java_com_trunotes_v2_plugins_AIBridge_nativeLoadModel(JNIEnv *env, jobject, jstr
 
     llama_model_params model_params = llama_model_default_params();
     model_params.use_mmap = use_mmap;
-    model_params.use_mlock = true; // PERFORMANCE FIX: Pin model in RAM to prevent slow generation
+    model_params.use_mlock = false; // Don't lock RAM - causes OOM on old devices
+    model_params.n_gpu_layers = n_gpu_layers;
+    
+    LOGi("Loading model with %d threads and %d GPU layers", n_threads, n_gpu_layers);
 
-    auto path_to_model = env->GetStringUTFChars(filename, 0);
-    LOGi("Loading model from %s", path_to_model);
-    LOGi("Model params: mmap=%d, mlock=1, threads=%d", use_mmap, n_threads);
-
-    g_model = llama_model_load_from_file(path_to_model, model_params);
+    llama_model * loaded_model = llama_model_load_from_file(path_to_model, model_params);
     env->ReleaseStringUTFChars(filename, path_to_model);
 
-    if (!g_model) {
+    if (!loaded_model) {
         LOGe("load_model() failed");
         return JNI_FALSE;
     }
 
+    if (is_embedding_model) g_embed_model = loaded_model;
+    else g_model = loaded_model;
+
     // Initialize context
     llama_context_params ctx_params = llama_context_default_params();
-    ctx_params.n_ctx = 2048; // OPTIMIZATION: 4096 is too slow for mobile init. 2048 is fast & sufficient.
+    if (is_embedding_model) {
+        ctx_params.n_ctx = 512;
+        ctx_params.embeddings = true;
+        ctx_params.pooling_type = LLAMA_POOLING_TYPE_MEAN;
+    } else {
+        ctx_params.n_ctx = (n_ctx_size > 256) ? n_ctx_size : 1280;
+    }
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads;
-    ctx_params.n_batch = 512; // Ensure batch size is optimal for prompt ingestion
-    
-    // PERFORMANCE BOOSTER: KV Quantization
-    ctx_params.type_k = GGML_TYPE_Q8_0; // Use 8-bit quantization for Key cache
-    ctx_params.type_v = GGML_TYPE_Q8_0; // Use 8-bit quantization for Value cache
+    ctx_params.n_batch = 256; // Lower memory pressure for old devices
 
-    g_context = llama_init_from_model(g_model, ctx_params);
-    if (!g_context) {
+    // KV cache stays at default (F16) on all paths — fastest for ARM NEON attention
+    // GPU layer offloading is handled via model_params.n_gpu_layers above
+
+    llama_context * loaded_ctx = llama_init_from_model(loaded_model, ctx_params);
+    if (!loaded_ctx) {
         LOGe("llama_init_from_model() failed");
-        llama_model_free(g_model);
-        g_model = nullptr;
+        llama_model_free(loaded_model);
+        if (is_embedding_model) g_embed_model = nullptr;
+        else g_model = nullptr;
         return JNI_FALSE;
     }
+
+    if (is_embedding_model) g_embed_context = loaded_ctx;
+    else g_context = loaded_ctx;
 
     return JNI_TRUE;
 }
@@ -184,13 +261,16 @@ bool is_complete_utf8(const std::string& str) {
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_trunotes_v2_plugins_AIBridge_nativeGenerate(JNIEnv *env, jobject thiz, jstring prompt, jint nPredict, jfloat temperature, jint topK, jfloat topP, jfloat penalty) {
+Java_com_trunotes_v2_plugins_AIBridge_nativeGenerate(JNIEnv *env, jobject thiz, jstring prompt, jint nPredict, jfloat temperature, jint topK, jfloat topP, jfloat penalty, jint n_threads) {
     std::lock_guard<std::mutex> lock(g_mutex);
     g_stop_generation = false; // Reset stop flag for new generation
-    
+
     if (!g_model || !g_context) {
         return env->NewStringUTF("Error: Model not loaded");
     }
+
+    // Apply thread count for this generation (can differ from model load time)
+    llama_set_n_threads(g_context, n_threads, n_threads);
 
     // Get callback method ID
     jclass cls = env->GetObjectClass(thiz);
@@ -262,9 +342,8 @@ Java_com_trunotes_v2_plugins_AIBridge_nativeGenerate(JNIEnv *env, jobject thiz, 
     }
 
     {
-        // HYPERSONIC PREFILL: 128 is much better for mobile RAM pressure than 512.
-        // This prevents the "2-minute freeze" on first response.
-        int n_eval_batch_size = 128;
+        // Match n_batch set at context init (256)
+        int n_eval_batch_size = 256;
         llama_batch batch = llama_batch_init(n_eval_batch_size, 0, 1);
         
         for (size_t i = n_keep; i < tokens_list.size(); i += (size_t)n_eval_batch_size) {
@@ -402,6 +481,14 @@ Java_com_trunotes_v2_plugins_AIBridge_nativeUnloadModel(JNIEnv *env, jobject) {
         llama_model_free(g_model);
         g_model = nullptr;
     }
+    if (g_embed_context) {
+        llama_free(g_embed_context);
+        g_embed_context = nullptr;
+    }
+    if (g_embed_model) {
+        llama_model_free(g_embed_model);
+        g_embed_model = nullptr;
+    }
     g_past_tokens.clear();
-    LOGi("Model and context successfully unloaded from memory");
+    LOGi("All models and contexts successfully unloaded");
 }

@@ -108,122 +108,131 @@
 /* Note Colors - Light Mode (Rich, Soft, Vibrant) */
 .note-color-rose {
   --note-accent: #f43f5e;
-  --note-bg: rgba(255, 228, 230, 0.95);
-  --note-bg-solid: #ffe4e6;
-  --note-glow: 0 4px 15px rgba(244, 63, 94, 0.25);
-  --note-border: rgba(244, 63, 94, 0.2);
+  --note-bg: rgba(255, 241, 242, 0.85);
+  /* Softer Paper Rose */
+  --note-bg-solid: #fff1f2;
+  --note-glow: 0 4px 12px rgba(244, 63, 94, 0.1);
+  --note-border: rgba(244, 63, 94, 0.1);
 }
 
 .note-color-sage {
-  --note-accent: #22c55e;
-  --note-bg: rgba(220, 252, 231, 0.95);
-  --note-bg-solid: #dcfce7;
-  --note-glow: 0 4px 15px rgba(34, 197, 94, 0.25);
-  --note-border: rgba(34, 197, 94, 0.2);
+  --note-accent: #10b981;
+  --note-bg: rgba(240, 253, 244, 0.85);
+  /* Softer Paper Sage */
+  --note-bg-solid: #f0fdf4;
+  --note-glow: 0 4px 12px rgba(16, 185, 129, 0.1);
+  --note-border: rgba(16, 185, 129, 0.1);
 }
 
 .note-color-sky {
   --note-accent: #0ea5e9;
-  --note-bg: rgba(224, 242, 254, 0.95);
-  --note-bg-solid: #e0f2fe;
-  --note-glow: 0 4px 15px rgba(14, 165, 233, 0.25);
-  --note-border: rgba(14, 165, 233, 0.2);
+  --note-bg: rgba(240, 249, 255, 0.85);
+  /* Softer Paper Sky */
+  --note-bg-solid: #f0f9ff;
+  --note-glow: 0 4px 12px rgba(14, 165, 233, 0.1);
+  --note-border: rgba(14, 165, 233, 0.1);
 }
 
 .note-color-lavender {
   --note-accent: #8b5cf6;
-  --note-bg: rgba(237, 233, 254, 0.95);
-  --note-bg-solid: #ede9fe;
-  --note-glow: 0 4px 15px rgba(139, 92, 246, 0.25);
-  --note-border: rgba(139, 92, 246, 0.2);
+  --note-bg: rgba(245, 243, 255, 0.85);
+  /* Softer Paper Lavender */
+  --note-bg-solid: #f5f3ff;
+  --note-glow: 0 4px 12px rgba(139, 92, 246, 0.1);
+  --note-border: rgba(139, 92, 246, 0.1);
 }
 
 .note-color-lemon {
-  --note-accent: #eab308;
-  --note-bg: rgba(254, 252, 232, 0.95);
-  --note-bg-solid: #fefce8;
-  --note-glow: 0 4px 15px rgba(234, 179, 8, 0.25);
-  --note-border: rgba(234, 179, 8, 0.2);
+  --note-accent: #d97706;
+  --note-bg: rgba(255, 251, 235, 0.85);
+  /* Softer Paper Lemon */
+  --note-bg-solid: #fffbeb;
+  --note-glow: 0 4px 12px rgba(217, 119, 6, 0.1);
+  --note-border: rgba(217, 119, 6, 0.1);
 }
 
 .note-color-default {
-  --note-accent: #64748b;
-  --note-bg: rgba(255, 255, 255, 0.95);
+  --note-accent: #94a3b8;
+  --note-bg: rgba(255, 255, 255, 0.85);
   --note-bg-solid: #ffffff;
-  --note-glow: 0 4px 15px rgba(148, 163, 184, 0.15);
-  --note-border: rgba(148, 163, 184, 0.2);
+  --note-glow: 0 4px 12px rgba(148, 163, 184, 0.1);
+  --note-border: rgba(148, 163, 184, 0.1);
 }
 
 /* Dark mode overrides: Translucent, Glowing, "Cool" High-Sat Glass with White Text */
 [data-theme='dark'] .note-color-rose {
-  --note-accent: #fb7185;
-  --note-bg: rgba(225, 29, 72, 0.35);
-  /* Translucent Rich Pink */
-  --note-glow: 0 0 30px rgba(225, 29, 72, 0.3);
-  --note-border: rgba(251, 113, 133, 0.4);
-  --text-primary: #ffffff;
-  --text-muted: #ffe4e6;
-  --note-text-body: #fff1f2;
+  --note-accent: #fda4af;
+  --note-bg: rgba(159, 18, 57, 0.15);
+  /* Much more subtle and paper-like in dark */
+  --note-glow: none;
+  --note-border: rgba(251, 113, 133, 0.15);
+  --text-primary: #fff1f2;
+  --text-muted: #fecdd3;
 }
 
 [data-theme='dark'] .note-color-sage {
-  --note-accent: #4ade80;
-  --note-bg: rgba(21, 128, 61, 0.35);
-  /* Translucent Rich Green */
-  --note-glow: 0 0 30px rgba(74, 222, 128, 0.3);
-  --note-border: rgba(74, 222, 128, 0.4);
-  --text-primary: #ffffff;
-  --text-muted: #dcfce7;
-  --note-text-body: #f0fdf4;
+  --note-accent: #86efac;
+  --note-bg: rgba(20, 83, 45, 0.15);
+  --note-glow: none;
+  --note-border: rgba(74, 222, 128, 0.15);
+  --text-primary: #f0fdf4;
+  --text-muted: #bbf7d0;
 }
 
 [data-theme='dark'] .note-color-sky {
-  --note-accent: #38bdf8;
-  --note-bg: rgba(3, 105, 161, 0.35);
-  /* Translucent Ocean Blue */
-  --note-glow: 0 0 30px rgba(56, 189, 248, 0.3);
-  --note-border: rgba(56, 189, 248, 0.4);
-  --text-primary: #ffffff;
-  --text-muted: #e0f2fe;
-  --note-text-body: #f0f9ff;
+  --note-accent: #7dd3fc;
+  --note-bg: rgba(12, 74, 110, 0.15);
+  --note-glow: none;
+  --note-border: rgba(56, 189, 248, 0.15);
+  --text-primary: #f0f9ff;
+  --text-muted: #bae6fd;
 }
 
 [data-theme='dark'] .note-color-lavender {
-  --note-accent: #a78bfa;
-  --note-bg: rgba(126, 34, 206, 0.35);
-  /* Translucent Rich Purple */
-  --note-glow: 0 0 30px rgba(167, 139, 250, 0.3);
-  --note-border: rgba(167, 139, 250, 0.4);
-  --text-primary: #ffffff;
-  --text-muted: #ede9fe;
-  --note-text-body: #f5f3ff;
+  --note-accent: #c4b5fd;
+  --note-bg: rgba(88, 28, 135, 0.15);
+  --note-glow: none;
+  --note-border: rgba(167, 139, 250, 0.15);
+  --text-primary: #f5f3ff;
+  --text-muted: #ddd6fe;
 }
 
 [data-theme='dark'] .note-color-lemon {
-  --note-accent: #facc15;
-  --note-bg: rgba(161, 98, 7, 0.35);
-  /* Translucent Rich Gold */
-  --note-glow: 0 0 30px rgba(250, 204, 21, 0.3);
-  --note-border: rgba(250, 204, 21, 0.4);
-  --text-primary: #ffffff;
-  --text-muted: #fefce8;
-  --note-text-body: #fffbeb;
+  --note-accent: #fde047;
+  --note-bg: rgba(113, 63, 18, 0.15);
+  --note-glow: none;
+  --note-border: rgba(250, 204, 21, 0.15);
+  --text-primary: #fffbeb;
+  --text-muted: #fef08a;
 }
 
 [data-theme='dark'] .note-color-default {
-  --note-accent: #94a3b8;
-  --note-bg: rgba(51, 65, 85, 0.5);
-  /* Translucent Slate */
-  --note-glow: 0 0 30px rgba(148, 163, 184, 0.2);
-  --note-border: rgba(148, 163, 184, 0.3);
-  --text-primary: #ffffff;
-  --text-muted: #cbd5e1;
-  --note-text-body: #e2e8f0;
+  --note-accent: #cbd5e1;
+  --note-bg: rgba(30, 41, 59, 0.2);
+  --note-glow: none;
+  --note-border: rgba(148, 163, 184, 0.1);
+  --text-primary: #f8fafc;
+  --text-muted: #94a3b8;
 }
 
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-focus-ring-color: transparent !important;
+  outline: none !important;
+}
+
+::selection {
+  background-color: rgba(99, 102, 241, 0.25);
+  color: inherit;
+  text-shadow: none;
+}
+
+::-moz-selection {
+  background-color: rgba(99, 102, 241, 0.25);
+  color: inherit;
+  text-shadow: none;
 }
 
 /* Snappy transitions for interactive elements */
@@ -232,8 +241,6 @@ a,
 .clickable,
 select {
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
-  -webkit-tap-highlight-color: transparent !important;
-  outline: none !important;
 }
 
 button:active,
@@ -244,7 +251,6 @@ a:active,
 
 html,
 body {
-  transition: var(--theme-transition);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   margin: 0;
@@ -256,6 +262,20 @@ body {
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* DISABLE TRANSITION ON BACKGROUND TO FIX WHITE FLASH */
+  transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+html[data-theme='dark'],
+body[data-theme='dark'] {
+  background-color: #0f172a !important;
+  background: #0f172a !important;
+}
+
+html[data-theme='light'],
+body[data-theme='light'] {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
 }
 
 #root {

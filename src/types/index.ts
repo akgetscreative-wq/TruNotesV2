@@ -12,6 +12,7 @@ export interface Note {
     order?: number; // Manual sort order
     type?: 'text' | 'drawing';
     deleted?: boolean;
+    embedding?: number[];
 }
 
 export interface Todo {
@@ -23,6 +24,7 @@ export interface Todo {
     targetDate: string; // YYYY-MM-DD or 'daily'
     deleted?: boolean;
     dailyParentId?: string;
+    embedding?: number[];
 }
 
 export interface Folder {
@@ -48,4 +50,13 @@ export interface ChatSession {
     messages: Message[];
     lastModified: number;
     modelName?: string;
+}
+
+export interface Notebook {
+    id: string;
+    title: string;
+    type: 'bubbles' | 'gradient-scribble' | 'mountains' | 'night' | 'geometric';
+    content: string; // The text content of the lined notebook
+    createdAt: number;
+    updatedAt: number;
 }

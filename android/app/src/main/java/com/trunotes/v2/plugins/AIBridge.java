@@ -64,6 +64,8 @@ public class AIBridge extends Plugin {
         
         boolean useMmap = call.getBoolean("use_mmap", true);
         int threads = call.getInt("threads", 6);
+        int nGpuLayers = call.getInt("n_gpu_layers", 0);
+        int nCtx = call.getInt("n_ctx", 1280);
 
         // INSTANT RESOLVE: Tell UI we are starting
         JSObject initialRet = new JSObject();
@@ -80,7 +82,7 @@ public class AIBridge extends Plugin {
                     return;
                 }
 
-                boolean success = nativeLoadModel(path, useMmap, threads);
+                boolean success = nativeLoadModel(path, useMmap, threads, nGpuLayers, nCtx);
                 if (success) {
                     isModelLoaded = true;
                     loadedPath = path;
@@ -115,9 +117,23 @@ public class AIBridge extends Plugin {
         }
 
         try {
-            // Clean up existing file if any to prevent duplicates/garbage (DownloadManager appends -1, -2 otherwise)
             File downloadDir = getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
             File existingFile = new File(downloadDir, filename);
+            Log.d(TAG, "Checking for existing file at: " + existingFile.getAbsolutePath());
+
+            // CRITICAL: Check if already exists and is healthy
+            if (existingFile.exists() && existingFile.length() > 10000000) {
+                Log.d(TAG, "File already exists and is valid. size: " + existingFile.length());
+                JSObject ret = new JSObject();
+                ret.put("downloadId", -1); // Use -1 to indicate skipped download
+                ret.put("path", existingFile.getAbsolutePath());
+                ret.put("alreadyExists", true);
+                call.resolve(ret);
+                return;
+            } else {
+                Log.d(TAG, "File not found or too small. exists: " + existingFile.exists() + ", size: " + existingFile.length());
+            }
+
             if (existingFile.exists()) {
                 existingFile.delete();
             }
@@ -167,13 +183,36 @@ public class AIBridge extends Plugin {
             return;
         }
         
-        File file = new File(getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), filename);
+        File downloadDir = getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        File file = new File(downloadDir, filename);
         boolean exists = file.exists();
         long size = exists ? file.length() : 0;
+        String finalPath = file.getAbsolutePath();
+
+        // FALLBACK: If direct check fails, scan the directory for a matching file
+        if (!exists && downloadDir != null && downloadDir.exists()) {
+            File[] files = downloadDir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (f.getName().equalsIgnoreCase(filename)) {
+                        exists = true;
+                        size = f.length();
+                        finalPath = f.getAbsolutePath();
+                        Log.d(TAG, "Fallback found file: " + finalPath);
+                        break;
+                    }
+                }
+            }
+        }
+
+        Log.d(TAG, "getModelPath check: " + finalPath + " exists: " + exists + " size: " + size);
+
+        // Ensure we don't accidentally detect partial files from failed downloads
+        boolean isValid = exists && size > 10000000; // 10MB floor
         
         JSObject ret = new JSObject();
-        ret.put("path", file.getAbsolutePath());
-        ret.put("exists", exists);
+        ret.put("path", finalPath);
+        ret.put("exists", isValid);
         ret.put("size", size);
         call.resolve(ret);
     }
@@ -191,27 +230,72 @@ public class AIBridge extends Plugin {
         
         android.database.Cursor cursor = downloadManager.query(query);
         if (cursor.moveToFirst()) {
-            int bytesDownloadedIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
-            int bytesTotalIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
-            int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
-            int reasonIdx = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
-            
-            long bytesDownloaded = cursor.getLong(bytesDownloadedIdx);
-            long bytesTotal = cursor.getLong(bytesTotalIdx);
-            int status = cursor.getInt(statusIdx);
-            int reason = cursor.getInt(reasonIdx);
-            String localUri = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+                int bytesDownloadedIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
+                int bytesTotalIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
+                int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                int reasonIdx = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
+
+                long bytesDownloaded = 0;
+                long bytesTotal = 0;
+                int status = 0;
+                int reason = 0;
+                String localUri = null;
+
+                if (bytesDownloadedIdx != -1) bytesDownloaded = cursor.getLong(bytesDownloadedIdx);
+                if (bytesTotalIdx != -1) bytesTotal = cursor.getLong(bytesTotalIdx);
+                if (statusIdx != -1) status = cursor.getInt(statusIdx);
+                if (reasonIdx != -1) reason = cursor.getInt(reasonIdx);
+                
+                int localUriIdx = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
+                if (localUriIdx != -1) localUri = cursor.getString(localUriIdx);
 
                 double progress = 0;
                 if (bytesTotal > 0) {
                     progress = ((double) bytesDownloaded / bytesTotal);
+                } else if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                    progress = 1.0;
+                }
+                
+                // If total size is unknown, but we are running, check disk to see if it's growing
+                String filename = call.getString("filename");
+                File fileOnDisk = null;
+                if (filename != null) {
+                    fileOnDisk = new File(getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), filename);
+                    if (fileOnDisk.exists() && bytesTotal <= 0 && status == DownloadManager.STATUS_RUNNING) {
+                        // Fallback: if we don't know total size, at least show it's progressing if > 0
+                        progress = Math.max(0.01, progress);
+                    }
+                }
+
+                if (status == DownloadManager.STATUS_PENDING) {
+                    progress = 0.005;
+                } else if (status == DownloadManager.STATUS_PAUSED) {
+                    progress = 0.01;
+                } else if (status == DownloadManager.STATUS_RUNNING && progress < 0.01) {
+                    progress = 0.01;
+                }
+
+                Log.d(TAG, "Download Progress: " + (progress * 100) + "% | Status: " + status + " | Bytes: " + bytesDownloaded + "/" + bytesTotal);
+
+                String cleanPath = localUri;
+                // Important: Convert content:// or file:// URI to absolute path for llama.cpp
+                if (localUri != null && localUri.startsWith("content://")) {
+                   cleanPath = fileOnDisk != null ? fileOnDisk.getAbsolutePath() : localUri;
+                } else if (localUri != null && localUri.startsWith("file://")) {
+                   cleanPath = localUri.substring(7);
+                }
+
+                if (status == DownloadManager.STATUS_SUCCESSFUL && fileOnDisk != null && fileOnDisk.exists()) {
+                    cleanPath = fileOnDisk.getAbsolutePath();
                 }
 
                 JSObject ret = new JSObject();
                 ret.put("progress", progress);
                 ret.put("status", status);
                 ret.put("reason", reason);
-                ret.put("path", localUri);
+                ret.put("bytesDownloaded", bytesDownloaded);
+                ret.put("bytesTotal", bytesTotal);
+                ret.put("path", cleanPath);
                 call.resolve(ret);
         } else {
             call.reject("Download not found");
@@ -286,11 +370,12 @@ public class AIBridge extends Plugin {
             return;
         }
 
-        int nPredict = call.getInt("n_predict", 512);
-        float temperature = call.getFloat("temperature", 0.7f);
-        int topK = call.getInt("top_k", 40);
-        float topP = call.getFloat("top_p", 0.9f);
-        float penalty = call.getFloat("penalty", 1.1f);
+        int nPredict = call.getInt("n_predict", 256);
+        float temperature = call.getFloat("temperature", 0.5f);
+        int topK = call.getInt("top_k", 20);
+        float topP = call.getFloat("top_p", 0.85f);
+        float penalty = call.getFloat("penalty", 1.2f);
+        int threads = call.getInt("threads", 6); // Read BEFORE resolve
 
         // INSTANT RESOLVE: UI can show bot bubble/loading immediately
         JSObject initialRet = new JSObject();
@@ -298,17 +383,45 @@ public class AIBridge extends Plugin {
         call.resolve(initialRet);
 
         // Call native code for actual AI generation in background
-        new Thread(() -> {
+        Thread genThread = new Thread(() -> {
             try {
-                // nativeGenerate now calls back onNativeToken for real-time streaming
-                String fullResponse = nativeGenerate(prompt, nPredict, temperature, topK, topP, penalty);
-                
+                String fullResponse = nativeGenerate(prompt, nPredict, temperature, topK, topP, penalty, threads);
+
                 // Final completion event
                 JSObject done = new JSObject();
                 done.put("fullResponse", fullResponse);
                 notifyListeners("done", done);
             } catch (Exception e) {
                 Log.e(TAG, "Generation failed", e);
+            }
+        });
+        genThread.setPriority(Thread.MAX_PRIORITY);
+        genThread.start();
+    }
+
+    @PluginMethod
+    public void embed(PluginCall call) {
+        String text = call.getString("text");
+        if (text == null) {
+            call.reject("Text is required for embedding");
+            return;
+        }
+
+        // Run directly or in thread? Llama embeddings are relatively fast but can take 50-100ms.
+        // Let's use a thread to be safe with Capacitor lifecycle.
+        new Thread(() -> {
+            try {
+                float[] vector = nativeEmbed(text);
+                if (vector != null) {
+                    JSObject ret = new JSObject();
+                    ret.put("vector", vector);
+                    call.resolve(ret);
+                } else {
+                    call.reject("Embedding generation failed (is embedding model loaded?)");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Embed failed", e);
+                call.reject("Embed failed: " + e.getMessage());
             }
         }).start();
     }
@@ -425,8 +538,9 @@ public class AIBridge extends Plugin {
         call.resolve();
     }
 
-    private native boolean nativeLoadModel(String filename, boolean useMmap, int nThreads);
-    private native String nativeGenerate(String prompt, int nPredict, float temperature, int topK, float topP, float penalty);
+    private native boolean nativeLoadModel(String filename, boolean useMmap, int nThreads, int nGpuLayers, int nCtx);
+    private native String nativeGenerate(String prompt, int nPredict, float temperature, int topK, float topP, float penalty, int nThreads);
     private native void nativeStopGenerate();
     private native void nativeUnloadModel();
+    private native float[] nativeEmbed(String text);
 }

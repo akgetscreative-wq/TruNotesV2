@@ -20,6 +20,7 @@ interface DashboardProps {
     onViewTasks?: () => void;
     onViewFavorites?: () => void;
     onViewAI?: () => void;
+    onViewNotebooks?: () => void;
 }
 
 // ── Swipable Note Cards ──
@@ -30,12 +31,12 @@ const NoteCarousel: React.FC<{ notes: Note[]; onNoteClick: (note: Note) => void 
     if (recentNotes.length === 0) return null;
 
     const gradients = [
-        'linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #6366f1 100%)',
-        'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-        'linear-gradient(135deg, #ec4899 0%, #f43f5e 50%, #fb923c 100%)',
-        'linear-gradient(135deg, #14b8a6 0%, #06b6d4 50%, #3b82f6 100%)',
-        'linear-gradient(135deg, #f59e0b 0%, #ef4444 50%, #ec4899 100%)',
-        'linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%)',
+        'linear-gradient(135deg, rgba(237, 233, 254, 0.95) 0%, rgba(245, 243, 255, 0.95) 100%)', // Soft Lavender Paper
+        'linear-gradient(135deg, rgba(224, 242, 254, 0.95) 0%, rgba(240, 249, 255, 0.95) 100%)', // Soft Sky Paper
+        'linear-gradient(135deg, rgba(220, 252, 231, 0.95) 0%, rgba(240, 253, 244, 0.95) 100%)', // Soft Sage Paper
+        'linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(255, 251, 235, 0.95) 100%)', // Soft Amber Paper
+        'linear-gradient(135deg, rgba(255, 228, 230, 0.95) 0%, rgba(255, 241, 242, 0.95) 100%)', // Soft Rose Paper
+        'linear-gradient(135deg, rgba(241, 245, 249, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)', // Soft Slate Paper
     ];
 
     const handleDragEnd = (_: any, info: any) => {
@@ -99,7 +100,8 @@ const NoteCarousel: React.FC<{ notes: Note[]; onNoteClick: (note: Note) => void 
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'space-between',
-                                    boxShadow: isFront ? '0 20px 40px -12px rgba(168, 85, 247, 0.4)' : 'none',
+                                    boxShadow: isFront ? '0 10px 25px -5px rgba(0, 0, 0, 0.1)' : 'none',
+                                    border: '1px solid rgba(0, 0, 0, 0.05)',
                                     position: 'absolute',
                                     top: 0, left: 0, right: 0,
                                     touchAction: isFront ? 'none' : 'auto'
@@ -108,14 +110,14 @@ const NoteCarousel: React.FC<{ notes: Note[]; onNoteClick: (note: Note) => void 
                             >
                                 <div>
                                     <h3 style={{
-                                        fontSize: '1.15rem', fontWeight: 700, color: 'white',
-                                        marginBottom: '0.5rem', textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        fontSize: '1.2rem', fontWeight: 800, color: '#1e293b',
+                                        marginBottom: '0.4rem'
                                     }}>
                                         {note.title || 'Untitled Note'}
                                     </h3>
                                     <p style={{
-                                        fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)',
-                                        lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box',
+                                        fontSize: '0.9rem', color: '#475569',
+                                        lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box',
                                         WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                                     }}>
                                         {(() => {
@@ -135,13 +137,14 @@ const NoteCarousel: React.FC<{ notes: Note[]; onNoteClick: (note: Note) => void 
                                     </p>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>
+                                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>
                                         {format(new Date(note.updatedAt), 'MMM d')}
                                     </span>
                                     <span style={{
-                                        background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)',
-                                        padding: '0.25rem 0.75rem', borderRadius: '20px',
-                                        fontSize: '0.7rem', color: 'white', fontWeight: 600
+                                        background: 'rgba(0,0,0,0.04)',
+                                        padding: '0.3rem 0.8rem', borderRadius: '12px',
+                                        fontSize: '0.75rem', color: '#475569', fontWeight: 600,
+                                        border: '1px solid rgba(0,0,0,0.05)'
                                     }}>
                                         {note.isFavorite ? '⭐ Favorite' : '📝 Note'}
                                     </span>
@@ -158,7 +161,7 @@ const NoteCarousel: React.FC<{ notes: Note[]; onNoteClick: (note: Note) => void 
                         key={i}
                         animate={{
                             width: i === activeIndex ? 24 : 8,
-                            backgroundColor: i === activeIndex ? '#a855f7' : 'rgba(255,255,255,0.2)'
+                            backgroundColor: i === activeIndex ? '#6366f1' : 'rgba(0,0,0,0.1)'
                         }}
                         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                         style={{ height: 8, borderRadius: 4, cursor: 'pointer' }}
@@ -265,7 +268,7 @@ const StatRow: React.FC<{
 };
 
 // ── Main Dashboard ──
-export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewNote, onNewTask, onViewCalendar, onViewJournal, onViewTasks, onViewFavorites, onViewAI }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewNote, onNewTask, onViewCalendar, onViewJournal, onViewTasks, onViewFavorites, onViewAI, onViewNotebooks }) => {
     const { theme } = useThemeContext();
     const { username } = useAuth();
     const { getTodosByDate, toggleTodo, todos } = useTodos();
@@ -362,7 +365,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                         </motion.button>
 
                         <motion.button
-                            whileHover={{ scale: 1.05, boxShadow: '0 12px 30px rgba(236,72,153,0.4)' }}
+                            whileHover={{ scale: 1.05, boxShadow: '0 12px 30px rgba(139, 92, 246, 0.4)' }}
                             whileTap={{ scale: 0.95 }}
                             onClick={onViewAI}
                             style={{
@@ -389,6 +392,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                                 textTransform: 'uppercase'
                             }}>
                                 Akitsu
+                            </span>
+                        </motion.button>
+
+                        <motion.button
+                            whileHover={{ scale: 1.05, boxShadow: '0 12px 30px rgba(168, 85, 247, 0.4)' }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={onViewNotebooks}
+                            style={{
+                                background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                                border: 'none',
+                                borderRadius: '24px',
+                                padding: isMobile ? '1rem 1.25rem' : '1.5rem 2.2rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                cursor: 'pointer',
+                                boxShadow: '0 8px 24px rgba(168, 85, 247, 0.3)',
+                                color: 'white',
+                                height: 'fit-content'
+                            }}
+                        >
+                            <Book size={isMobile ? 24 : 32} />
+                            <span style={{
+                                fontSize: isMobile ? '0.85rem' : '1rem',
+                                fontWeight: 800,
+                                letterSpacing: '0.02em',
+                                textTransform: 'uppercase'
+                            }}>
+                                Books
                             </span>
                         </motion.button>
                     </div>

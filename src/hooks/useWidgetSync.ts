@@ -80,6 +80,43 @@ export function useWidgetSync() {
             }
         });
 
+        // ── Electron Desktop Widget Actions ──
+        const electron = (window as any).electron;
+        if (electron) {
+            // Handle toggle-todo from widget
+            electron.onWidgetToggleTodo?.(async (todoId: string) => {
+                try {
+                    const todos = await storage.getTodos();
+                    const todo = todos.find(t => t.id === todoId);
+                    if (todo) {
+                        await storage.saveTodo({ ...todo, completed: !todo.completed, updatedAt: Date.now() });
+                        await storage.triggerWidgetSync();
+                    }
+                } catch (e) {
+                    console.error("WidgetSync: Toggle failed", e);
+                }
+            });
+
+            // Handle add-todo from widget
+            electron.onWidgetAddTodo?.(async (text: string) => {
+                try {
+                    const today = format(new Date(), 'yyyy-MM-dd');
+                    const newTodo: Todo = {
+                        id: `widget-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                        text,
+                        completed: false,
+                        targetDate: today,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now(),
+                    };
+                    await storage.saveTodo(newTodo);
+                    await storage.triggerWidgetSync();
+                } catch (e) {
+                    console.error("WidgetSync: Add failed", e);
+                }
+            });
+        }
+
         return () => {
             listener.then(h => h.remove());
         };

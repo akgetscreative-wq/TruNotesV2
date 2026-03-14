@@ -1,5 +1,5 @@
 import { openDB, type DBSchema } from 'idb';
-import type { Note, Todo } from '../types';
+import type { Note, Todo, Notebook } from '../types';
 import { Preferences } from '@capacitor/preferences';
 import { format } from 'date-fns';
 import { WidgetBridge } from '../features/WidgetBridge';
@@ -15,12 +15,18 @@ interface TruNotesDB extends DBSchema {
         value: Todo;
         indexes: { 'by-date': number; 'by-target-date': string };
     };
+    notebooks: {
+        key: string;
+        value: Notebook;
+        indexes: { 'by-date': number };
+    };
     hourly_logs: {
         key: string; // date string (YYYY-MM-DD)
         value: {
             date: string;
             logs: { [hour: number]: string };
             updatedAt?: number;
+            embedding?: number[];
         };
     };
     ai_sessions: {
@@ -29,7 +35,7 @@ interface TruNotesDB extends DBSchema {
     };
 }
 
-const dbPromise = openDB<TruNotesDB>('trunotes-db', 7, {
+const dbPromise = openDB<TruNotesDB>('trunotes-db', 8, {
     upgrade(db, oldVersion, _newVersion, transaction) {
         if (oldVersion < 1) {
             const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
@@ -46,6 +52,10 @@ const dbPromise = openDB<TruNotesDB>('trunotes-db', 7, {
         }
         if (oldVersion < 7 && !db.objectStoreNames.contains('ai_sessions')) {
             db.createObjectStore('ai_sessions', { keyPath: 'id' });
+        }
+        if (oldVersion < 8 && !db.objectStoreNames.contains('notebooks')) {
+            const notebookStore = db.createObjectStore('notebooks', { keyPath: 'id' });
+            notebookStore.createIndex('by-date', 'updatedAt');
         }
         console.log("DB Upgrade complete to version", _newVersion, "using transaction:", !!transaction);
     },
@@ -169,9 +179,9 @@ export const storage = {
         this.notifyListeners();
     },
 
-    async saveHourlyLog(date: string, logs: { [hour: number]: string }) {
+    async saveHourlyLog(date: string, logs: { [hour: number]: string }, embedding?: number[]) {
         const db = await dbPromise;
-        await db.put('hourly_logs', { date, logs, updatedAt: Date.now() });
+        await db.put('hourly_logs', { date, logs, updatedAt: Date.now(), embedding });
         this.notifyListeners();
     },
 
@@ -332,7 +342,7 @@ export const storage = {
     },
 
     async triggerWidgetSync() {
-        // Sync to Widget (Android Native Bridge)
+        // Sync to Widget (Android Native Bridge + Electron Desktop Widget)
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -358,6 +368,17 @@ export const storage = {
             }
 
             console.log("storage: Widget data updated - ", pendingTodos.length, "pending tasks");
+
+            // ── Push ALL pending todos to Electron desktop widget ──
+            try {
+                const electronAPI = (window as any).electron;
+                if (electronAPI && typeof electronAPI.updateWidgetTodos === 'function') {
+                    electronAPI.updateWidgetTodos(allTodos.filter(t => !t.completed));
+                    console.log("storage: Electron desktop widget synced");
+                }
+            } catch (e) {
+                // Not running in Electron — safe to ignore
+            }
 
             // Trigger native widget refresh broadcast (Android only)
             try {
@@ -386,6 +407,29 @@ export const storage = {
     async deleteAISession(id: string) {
         const db = await dbPromise;
         await db.delete('ai_sessions', id);
+        this.notifyListeners();
+    },
+
+    // NOTEBOOK STORAGE
+    async getAllNotebooks(): Promise<Notebook[]> {
+        const db = await dbPromise;
+        return db.getAll('notebooks');
+    },
+
+    async getNotebook(id: string): Promise<Notebook | undefined> {
+        const db = await dbPromise;
+        return db.get('notebooks', id);
+    },
+
+    async saveNotebook(notebook: Notebook): Promise<void> {
+        const db = await dbPromise;
+        await db.put('notebooks', { ...notebook, updatedAt: Date.now() });
+        this.notifyListeners();
+    },
+
+    async deleteNotebook(id: string): Promise<void> {
+        const db = await dbPromise;
+        await db.delete('notebooks', id);
         this.notifyListeners();
     }
 };
