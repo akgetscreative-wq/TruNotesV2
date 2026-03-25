@@ -25,9 +25,15 @@ export const useAIEngine = (
     const lastUpdateRef = useRef(0);
     const tokenCountRef = useRef(0);
     const generationStartTimeRef = useRef(0);
+    const isGeneratingRef = useRef(false);
+
+    useEffect(() => {
+        isGeneratingRef.current = isGenerating;
+    }, [isGenerating]);
 
     useEffect(() => {
         const tokenListener = AIBridge.addListener('token', (data: { token: string }) => {
+            if (!isGeneratingRef.current) return;
             tokenBufferRef.current += data.token;
             tokenCountRef.current++;
 
@@ -66,6 +72,7 @@ export const useAIEngine = (
         });
 
         const doneListener = AIBridge.addListener('done', async (data: { fullResponse: string }) => {
+            if (!isGeneratingRef.current) return;
             if (generationStartTimeRef.current === -1) return;
 
             const finalBotText = data.fullResponse;

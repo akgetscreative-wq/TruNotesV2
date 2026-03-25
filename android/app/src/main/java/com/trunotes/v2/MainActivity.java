@@ -11,6 +11,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import androidx.core.view.WindowCompat;
 import com.trunotes.v2.plugins.AIBridge;
+import com.trunotes.v2.plugins.BackgroundVoiceAIPlugin;
 import com.trunotes.v2.plugins.WidgetBridge;
 
 public class MainActivity extends BridgeActivity {
@@ -18,6 +19,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         // Register the AIBridge plugin
         registerPlugin(AIBridge.class);
+        registerPlugin(BackgroundVoiceAIPlugin.class);
         registerPlugin(WidgetBridge.class);
         
         super.onCreate(savedInstanceState);

@@ -1,0 +1,1 @@
+export { VoiceNotesTab } from './VoiceNotesTab';

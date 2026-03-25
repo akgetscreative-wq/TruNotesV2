@@ -267,12 +267,8 @@ public class AIBridge extends Plugin {
                     }
                 }
 
-                if (status == DownloadManager.STATUS_PENDING) {
-                    progress = 0.005;
-                } else if (status == DownloadManager.STATUS_PAUSED) {
-                    progress = 0.01;
-                } else if (status == DownloadManager.STATUS_RUNNING && progress < 0.01) {
-                    progress = 0.01;
+                if (status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_PAUSED) {
+                    progress = 0;
                 }
 
                 Log.d(TAG, "Download Progress: " + (progress * 100) + "% | Status: " + status + " | Bytes: " + bytesDownloaded + "/" + bytesTotal);

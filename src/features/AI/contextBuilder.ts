@@ -26,9 +26,10 @@ let contextCache = {
   dataHash: ""
 }
 
-// Max chars for context data — keeps total prompt under ~1000 tokens (safe for n_ctx=1280)
-// Budget: n_ctx(1280) - system(130) - history(240) - user(40) - generation(200) ≈ 670 tokens ≈ 2680 chars
-const MAX_CONTEXT_CHARS = 2500
+// Max chars for context data — keeps prefill fast (old devices: ~30ms/token prefill)
+// Budget: ~375 tokens context → system(130) + context(375) + user(5) ≈ 510 tokens → ~15s prefill on old HW
+// Reduced from 2500: note summaries are the biggest prefill culprit
+const MAX_CONTEXT_CHARS = 1500
 
 // -------------------------------
 // TEXT CLEANING
@@ -113,7 +114,9 @@ export const getRelevantContext = async (
     const now = new Date()
     const lowerInput = userInput.toLowerCase()
 
-    await rebuildContextCache(data)
+    // NOTE: rebuildContextCache is deferred to after early-return paths below.
+    // Queries like "summarise notes" / "list tasks" return before reaching it,
+    // avoiding the getAllHourlyLogs() DB call entirely on those fast paths.
 
     // -------------------------
     // INTENT DETECTION
@@ -261,14 +264,14 @@ export const getRelevantContext = async (
       const allNotes = data.notes.filter(n => !n.deleted)
       const recentNotes = [...allNotes]
         .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
-        .slice(0, 8)
+        .slice(0, 5)
 
       if (recentNotes.length > 0) {
         let notesContext = `[APP CONTEXT]\n### RECENT NOTES (${recentNotes.length} shown of ${allNotes.length} total)\n`
         let chars = notesContext.length
         for (const n of recentNotes) {
           const date = format(n.updatedAt ?? n.createdAt, 'MMM d')
-          const line = `- [${date}] ${n.title}: ${processContent(n.content).substring(0, 120)}\n`
+          const line = `- [${date}] ${n.title}: ${processContent(n.content).substring(0, 80)}\n`
           if (chars + line.length > MAX_CONTEXT_CHARS) break
           notesContext += line
           chars += line.length
@@ -297,6 +300,9 @@ export const getRelevantContext = async (
       }
     }
 
+    // Cache is needed from here on (overview uses recentLogs; semantic uses searchableItems)
+    await rebuildContextCache(data)
+
     // Handle general "catch me up" / overview requests - return both notes + tasks + logs
     if (isGeneralDataRequest || (isSummaryRequest && !isNoteRequest && !isTaskRequest)) {
       let overviewContext = `[APP CONTEXT]\nDate: ${format(now, "eeee, yyyy-MM-dd p")}\n\n`
@@ -319,13 +325,13 @@ export const getRelevantContext = async (
 
       const recentNotes = [...data.notes].filter(n => !n.deleted)
         .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
-        .slice(0, 10)
+        .slice(0, 6)
       if (recentNotes.length > 0) {
         const header = `### RECENT NOTES\n`
         overviewContext += header
         chars += header.length
         for (const n of recentNotes) {
-          const line = `- ${n.title}: ${processContent(n.content).substring(0, 120)}\n`
+          const line = `- ${n.title}: ${processContent(n.content).substring(0, 80)}\n`
           if (chars + line.length > MAX_CONTEXT_CHARS * 0.85) break // notes get up to 85%
           overviewContext += line
           chars += line.length
@@ -401,7 +407,7 @@ export const getRelevantContext = async (
       ctxChars += 20
       for (const item of retrievedItems) {
         const prefix = item.type === "log" ? `[Log ${item.id}]` : `[${item.title}]`
-        const line = `> ${prefix}: ${processContent(item.content).substring(0, 300)}\n`
+        const line = `> ${prefix}: ${processContent(item.content).substring(0, 200)}\n`
         if (ctxChars + line.length > MAX_CONTEXT_CHARS) break
         contextStr += line
         ctxChars += line.length
@@ -413,7 +419,7 @@ export const getRelevantContext = async (
         contextStr += "### RECENT NOTES (POSSIBLY RELATED)\n"
         ctxChars += 35
         for (const n of fallback) {
-          const line = `> ${n.title}: ${processContent(n.content).substring(0, 300)}\n`
+          const line = `> ${n.title}: ${processContent(n.content).substring(0, 150)}\n`
           if (ctxChars + line.length > MAX_CONTEXT_CHARS) break
           contextStr += line
           ctxChars += line.length

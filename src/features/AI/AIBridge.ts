@@ -5,7 +5,7 @@ export interface AIBridgePlugin {
     downloadModel(options: { url: string, filename: string }): Promise<{ downloadId: number, path: string, alreadyExists?: boolean }>;
     getLastModelPath(): Promise<{ path: string | null }>;
     getModelPath(options: { filename: string }): Promise<{ path: string, exists: boolean, size: number }>;
-    getDownloadProgress(options: { downloadId: number, filename?: string }): Promise<{ progress: number, status: number, reason?: number, path?: string }>;
+    getDownloadProgress(options: { downloadId: number, filename?: string }): Promise<{ progress: number, status: number, reason?: number, path?: string, bytesDownloaded?: number, bytesTotal?: number }>;
     deleteModel(options: { filename: string, downloadId?: number }): Promise<{ deleted: boolean }>;
     generate(options: {
         prompt: string,

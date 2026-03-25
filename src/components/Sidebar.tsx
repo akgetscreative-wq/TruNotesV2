@@ -1,11 +1,11 @@
-import { Home, Book, Star, CheckSquare, Calendar, LogOut, Hourglass, Coffee, Cloud, Settings, Brain } from 'lucide-react';
+import { Home, Book, Star, CheckSquare, Calendar, LogOut, Hourglass, Coffee, Cloud, Settings, Brain, MicVocal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from './UI/ThemeToggle';
 import { useTheme } from '../hooks/useTheme';
 
 interface SidebarProps {
-    currentView: 'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai';
-    onChangeView: (view: 'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai') => void;
+    currentView: 'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai' | 'voice';
+    onChangeView: (view: 'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai' | 'voice') => void;
     onLogout: () => void;
     onClose?: () => void;
     dragX?: any; // The buttery smooth MotionValue from Layout
@@ -28,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onL
         { id: 'timer', label: 'Focus', icon: Hourglass },
         { id: 'sync', label: 'Sync', icon: Cloud },
         { id: 'settings', label: 'Settings', icon: Settings },
+        { id: 'voice', label: 'Voice', icon: MicVocal },
         { id: 'ai', label: 'Akitsu', icon: Brain },
     ] as const;
 
@@ -38,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onL
             if (onClose) onClose();
         };
 
-        // Mobile: plain button — no framer-motion gesture interference
+        // Mobile: plain button Ã¢â‚¬â€ no framer-motion gesture interference
         if (isMobile) {
             return (
                 <button

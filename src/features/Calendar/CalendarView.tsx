@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useTransform, useMotionValue } from 'framer-motion';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getHours, getDay, addDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getHours, getDay, addDays, isSameDay } from 'date-fns';
 import { ChevronLeft, ChevronRight, X, CheckSquare, Square, Star, Clock } from 'lucide-react';
 import type { Note, Todo } from '../../types';
 import { useTodos } from '../../hooks/useTodos';
@@ -119,6 +119,7 @@ export const CalendarView: React.FC<CalendarProps> = ({ notes, onNoteClick, rese
     };
 
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const today = new Date();
 
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -283,6 +284,7 @@ export const CalendarView: React.FC<CalendarProps> = ({ notes, onNoteClick, rese
                                         hasTodos={hasTodos}
                                         dayNotes={dayNotes}
                                         dayTodos={dayTodos}
+                                        isToday={isSameDay(day, today)}
                                         isMobile={isMobile}
                                         onClick={() => setSelectedDate(day)}
                                     />
@@ -484,9 +486,10 @@ const GlassDateCell: React.FC<{
     hasTodos: boolean;
     dayNotes: Note[];
     dayTodos: Todo[];
+    isToday: boolean;
     isMobile: boolean;
     onClick: () => void
-}> = ({ day, hasNotes, hasTodos, dayNotes, dayTodos, isMobile, onClick }) => {
+}> = ({ day, hasNotes, hasTodos, dayNotes, dayTodos, isToday, isMobile, onClick }) => {
     const x = useMotionValue(0);
     const y = useMotionValue(0);
     const rotateX = useTransform(y, [-50, 50], [10, -10]);
@@ -515,13 +518,19 @@ const GlassDateCell: React.FC<{
                 transformStyle: 'preserve-3d',
                 aspectRatio: '1',
                 borderRadius: isMobile ? '8px' : '16px',
-                background: theme === 'dark'
-                    ? 'rgba(30, 238, 245, 0.15)'
-                    : 'rgba(255, 255, 255, 0.73)',
+                background: isToday
+                    ? (theme === 'dark'
+                        ? 'linear-gradient(160deg, rgba(56, 189, 248, 0.3), rgba(168, 85, 247, 0.26))'
+                        : 'linear-gradient(160deg, rgba(219, 234, 254, 0.98), rgba(254, 226, 226, 0.96))')
+                    : theme === 'dark'
+                        ? 'rgba(30, 238, 245, 0.15)'
+                        : 'rgba(255, 255, 255, 0.73)',
                 backdropFilter: 'blur(12px)',
-                border: theme === 'dark'
-                    ? '1px solid rgba(255, 255, 255, 0.1)'
-                    : '1px solid rgba(255, 255, 255, 0.6)',
+                border: isToday
+                    ? (theme === 'dark' ? '1.5px solid rgba(125, 211, 252, 0.75)' : '1.5px solid rgba(99, 102, 241, 0.55)')
+                    : theme === 'dark'
+                        ? '1px solid rgba(255, 255, 255, 0.1)'
+                        : '1px solid rgba(255, 255, 255, 0.6)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -529,9 +538,13 @@ const GlassDateCell: React.FC<{
                 cursor: 'pointer',
                 position: 'relative',
                 color: 'var(--text-primary)',
-                boxShadow: theme === 'dark'
-                    ? '0 4px 6px -1px rgba(0, 0, 0, 0.2)'
-                    : '0 4px 20px -5px rgba(0, 150, 136, 0.1)'
+                boxShadow: isToday
+                    ? (theme === 'dark'
+                        ? '0 10px 30px rgba(56, 189, 248, 0.22), 0 0 0 1px rgba(125, 211, 252, 0.25)'
+                        : '0 12px 28px rgba(99, 102, 241, 0.16), 0 0 0 1px rgba(99, 102, 241, 0.1)')
+                    : theme === 'dark'
+                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.2)'
+                        : '0 4px 20px -5px rgba(0, 150, 136, 0.1)'
             }}
             whileHover={!isMobile ? {
                 scale: 1.04,
@@ -545,6 +558,24 @@ const GlassDateCell: React.FC<{
             whileTap={{ scale: 0.95 }}
         >
             {/* Sunday Pink Label */}
+            {isToday && (
+                <div style={{
+                    position: 'absolute',
+                    top: isMobile ? '6px' : '10px',
+                    right: isMobile ? '6px' : '10px',
+                    padding: isMobile ? '0.08rem 0.3rem' : '0.15rem 0.38rem',
+                    borderRadius: '999px',
+                    background: theme === 'dark' ? 'rgba(14, 165, 233, 0.24)' : 'rgba(99, 102, 241, 0.12)',
+                    color: theme === 'dark' ? '#bae6fd' : '#4f46e5',
+                    fontSize: isMobile ? '0.45rem' : '0.58rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase'
+                }}>
+                    Today
+                </div>
+            )}
+
             {isSunday && (
                 <div style={{
                     position: 'absolute',
@@ -559,7 +590,7 @@ const GlassDateCell: React.FC<{
             )}
 
             <div style={{ transform: 'translateZ(20px)', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: isMobile ? '1.5rem' : '3.5rem', fontWeight: 800, letterSpacing: '-0.05em', lineHeight: 1, color: 'var(--text-primary)' }}>
+                <span style={{ fontSize: isMobile ? '1.5rem' : '3.5rem', fontWeight: 800, letterSpacing: '-0.05em', lineHeight: 1, color: isToday ? (theme === 'dark' ? '#f8fafc' : '#312e81') : 'var(--text-primary)', textShadow: isToday ? (theme === 'dark' ? '0 0 18px rgba(125, 211, 252, 0.22)' : '0 8px 20px rgba(99, 102, 241, 0.12)') : 'none' }}>
                     {format(day, 'd')}
                 </span>
             </div>

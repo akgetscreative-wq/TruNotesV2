@@ -9,6 +9,9 @@ export interface Model {
     size: string;
     status: 'idle' | 'downloading' | 'downloaded' | 'loading' | 'loaded';
     progress?: number;
+    downloadStatus?: number;
+    bytesDownloaded?: number;
+    bytesTotal?: number;
     url?: string;
     actualPath?: string;
     downloadId?: number;
@@ -61,9 +64,9 @@ export const useAIModels = (setError: (err: string | null) => void) => {
                 try {
                     const info = await AIBridge.getModelPath({ filename: `${m.id}.gguf` });
                     if (info.exists) {
-                        return { ...m, status: 'downloaded' as const, actualPath: info.path, progress: 1 };
+                        return { ...m, status: 'downloaded' as const, actualPath: info.path, progress: 1, downloadStatus: 8, bytesDownloaded: info.size, bytesTotal: info.size };
                     } else if (m.status === 'downloaded' || m.status === 'loaded') {
-                        return { ...m, status: 'idle' as const, progress: 0 };
+                        return { ...m, status: 'idle' as const, progress: 0, downloadStatus: undefined, bytesDownloaded: 0, bytesTotal: 0 };
                     }
                 } catch (e) { }
                 return m;
@@ -84,7 +87,7 @@ export const useAIModels = (setError: (err: string | null) => void) => {
     useEffect(() => {
         const statusListener = AIBridge.addListener('modelStatus', (data: { status: string, path?: string, message?: string }) => {
             if (data.status === 'loaded') {
-                setModels(prev => prev.map(m => (data.path?.includes(m.id) || (m.status === 'loading')) ? { ...m, status: 'loaded', progress: 1, actualPath: data.path } : { ...m, status: m.status === 'loaded' ? 'downloaded' : m.status }));
+                setModels(prev => prev.map(m => (data.path?.includes(m.id) || (m.status === 'loading')) ? { ...m, status: 'loaded', progress: 1, actualPath: data.path, downloadStatus: 8 } : { ...m, status: m.status === 'loaded' ? 'downloaded' : m.status }));
                 const matched = models.find(m => data.path?.includes(m.id) || m.status === 'loading');
                 if (matched) {
                     setLoadedModel(matched.id);
@@ -107,12 +110,12 @@ export const useAIModels = (setError: (err: string | null) => void) => {
                     });
 
                     if (prog.status === 8) { // STATUS_SUCCESSFUL
-                        setModels(prev => prev.map(m => m.id === downloadingModel.id ? { ...m, status: 'downloaded', progress: 1, actualPath: prog.path } : m));
+                        setModels(prev => prev.map(m => m.id === downloadingModel.id ? { ...m, status: 'downloaded', progress: 1, actualPath: prog.path, downloadStatus: prog.status, bytesDownloaded: prog.bytesTotal ?? prog.bytesDownloaded, bytesTotal: prog.bytesTotal ?? prog.bytesDownloaded } : m));
                     } else if (prog.status === 16) { // STATUS_FAILED
                         setError(`Download failed (Reason: ${prog.reason})`);
-                        setModels(prev => prev.map(m => m.id === downloadingModel.id ? { ...m, status: 'idle', progress: 0 } : m));
+                        setModels(prev => prev.map(m => m.id === downloadingModel.id ? { ...m, status: 'idle', progress: 0, downloadStatus: prog.status, bytesDownloaded: prog.bytesDownloaded ?? 0, bytesTotal: prog.bytesTotal ?? 0 } : m));
                     } else {
-                        setModels(prev => prev.map(m => m.id === downloadingModel.id ? { ...m, progress: prog.progress } : m));
+                        setModels(prev => prev.map(m => m.id === downloadingModel.id ? { ...m, progress: prog.progress, downloadStatus: prog.status, bytesDownloaded: prog.bytesDownloaded ?? 0, bytesTotal: prog.bytesTotal ?? 0 } : m));
                     }
                 } catch (e) { }
             }
@@ -156,24 +159,24 @@ export const useAIModels = (setError: (err: string | null) => void) => {
         try {
             const info = await AIBridge.getModelPath({ filename: `${model.id}.gguf` });
             if (info.exists && info.size > 10000000) {
-                setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloaded', progress: 1, actualPath: info.path } : m));
+                setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloaded', progress: 1, actualPath: info.path, downloadStatus: 8, bytesDownloaded: info.size, bytesTotal: info.size } : m));
                 return;
             }
 
-            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloading', progress: 0.01 } : m));
+            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloading', progress: 0, downloadStatus: 1, bytesDownloaded: 0, bytesTotal: 0 } : m));
             const res = await AIBridge.downloadModel({
                 url: model.url,
                 filename: `${model.id}.gguf`
             });
 
             if (res.alreadyExists) {
-                setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloaded', progress: 1, actualPath: res.path } : m));
+                setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'downloaded', progress: 1, actualPath: res.path, downloadStatus: 8 } : m));
             } else {
-                setModels(prev => prev.map(m => m.id === model.id ? { ...m, downloadId: res.downloadId } : m));
+                setModels(prev => prev.map(m => m.id === model.id ? { ...m, downloadId: res.downloadId, progress: 0, downloadStatus: 1, bytesDownloaded: 0, bytesTotal: 0 } : m));
             }
         } catch (err) {
             setError("Download failed to start: " + err);
-            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle' } : m));
+            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle', progress: 0, downloadStatus: undefined, bytesDownloaded: 0, bytesTotal: 0 } : m));
         }
     };
 
@@ -184,7 +187,7 @@ export const useAIModels = (setError: (err: string | null) => void) => {
             } else {
                 await AIBridge.deleteModel({ filename: `${model.id}.gguf` });
             }
-            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle', progress: 0, actualPath: undefined, downloadId: undefined } : m));
+            setModels(prev => prev.map(m => m.id === model.id ? { ...m, status: 'idle', progress: 0, actualPath: undefined, downloadId: undefined, downloadStatus: undefined, bytesDownloaded: 0, bytesTotal: 0 } : m));
             if (loadedModel === model.id) {
                 setLoadedModel(null);
                 setLastLoadedModelPath(null);

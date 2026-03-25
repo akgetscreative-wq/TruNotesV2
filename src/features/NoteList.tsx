@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { Note } from '../types';
 import { NoteCard } from '../components/NoteCard';
-import { Plus, Trash2, Copy, Star, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Copy, Star, ExternalLink, FileText, Sparkles, PenTool } from 'lucide-react';
 
 interface NoteListProps {
     notes: Note[];
@@ -19,7 +19,6 @@ export const NoteList: React.FC<NoteListProps> = ({
 }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; noteId: string } | null>(null);
 
-    // Close menu on click outside
     useEffect(() => {
         const handleClick = () => setContextMenu(null);
         window.addEventListener('click', handleClick);
@@ -31,29 +30,32 @@ export const NoteList: React.FC<NoteListProps> = ({
 
         let x = e.clientX;
         let y = e.clientY;
-
         const menuWidth = 220;
-        const menuHeight = 250; // Approximate height of the popup
+        const menuHeight = 250;
 
-        if (x + menuWidth > window.innerWidth) {
-            x = window.innerWidth - menuWidth - 20;
-        }
-        if (y + menuHeight > window.innerHeight) {
-            y = window.innerHeight - menuHeight - 20;
-        }
+        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 20;
+        if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 20;
 
         setContextMenu({ x, y, noteId: note.id });
     };
 
-    if (loading) {
-        return (
-            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
-                Loading your thoughts...
-            </div>
-        );
-    }
+    const activeNote = contextMenu ? notes.find((n) => n.id === contextMenu.noteId) : null;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
-    const activeNote = contextMenu ? notes.find(n => n.id === contextMenu.noteId) : null;
+    const stats = useMemo(() => {
+        const drawings = notes.filter((note) => note.type === 'drawing').length;
+        const favorites = notes.filter((note) => note.isFavorite).length;
+        const lastUpdated = notes.length ? Math.max(...notes.map((note) => note.updatedAt || note.createdAt)) : null;
+
+        return {
+            total: notes.length,
+            drawings,
+            favorites,
+            lastUpdatedLabel: lastUpdated
+                ? new Date(lastUpdated).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                : 'None yet'
+        };
+    }, [notes]);
 
     const menuItemStyle = {
         display: 'flex',
@@ -66,72 +68,112 @@ export const NoteList: React.FC<NoteListProps> = ({
         color: 'var(--text-primary)',
         textAlign: 'left' as const,
         cursor: 'pointer',
-        borderRadius: '6px',
+        borderRadius: '10px',
         fontSize: '0.9rem',
         transition: 'background 0.2s',
         outline: 'none'
     };
 
-    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-
-    return (
-        <div className="fade-in" style={{ padding: isMobile ? '0 0.5rem' : '0' }}>
+    if (loading) {
+        return (
             <div
-                className="note-grid"
                 style={{
-                    background: 'var(--dashboard-header-bg)',
-                    backdropFilter: 'blur(10px)',
-                    borderRadius: isMobile ? '20px' : '32px',
+                    textAlign: 'center',
+                    padding: '4rem',
+                    color: 'var(--text-secondary)',
+                    background: 'rgba(255,255,255,0.55)',
                     border: '1px solid var(--border-subtle)',
-                    margin: isMobile ? 'calc(var(--safe-top) + 1.5rem) auto 1rem auto' : '0 auto 1.5rem auto',
-                    minHeight: isMobile ? 'auto' : '60vh',
-                    boxShadow: 'var(--shadow-soft)',
-                    paddingBottom: '5rem'
+                    borderRadius: '28px',
+                    boxShadow: 'var(--shadow-soft)'
                 }}
             >
-                <button
-                    onClick={onNewNote}
-                    style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '2px dashed var(--border-subtle)',
-                        borderRadius: '12px',
-                        height: isMobile ? '190px' : '240px', // Match NoteCard height
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--accent-primary)',
-                        gap: '0.8rem',
-                        transition: 'all 0.2s ease',
-                        cursor: 'pointer'
-                    }}
-                >
-                    <div style={{
-                        background: 'var(--accent-primary)',
-                        padding: isMobile ? '0.75rem' : '1rem',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)'
-                    }}>
-                        <Plus size={isMobile ? 20 : 24} strokeWidth={3} />
-                    </div>
-                    <span style={{ fontWeight: 600, fontSize: isMobile ? '1rem' : '1.1rem' }}>New Note</span>
-                </button>
+                Loading your thoughts...
+            </div>
+        );
+    }
 
-                {notes.map((note) => (
-                    <NoteCard
-                        key={note.id}
-                        note={note}
-                        onClick={onNoteClick}
-                        onContextMenu={handleContextMenu}
-                    />
-                ))}
+    return (
+        <div className="fade-in" style={{ padding: 0 }}>
+            <div className="notes-overview-shell">
+                <div className="notes-overview-panel">
+                    <div>
+                        <div className="notes-kicker">Notes space</div>
+                        <h2 className="notes-overview-title">Your ideas, sketches, and saved thinking in one calm place.</h2>
+                        <p className="notes-overview-copy">
+                            Browse quickly, spot favorites faster, and jump back into work without digging through clutter.
+                        </p>
+                    </div>
+
+                    <div className="notes-stat-row">
+                        <div className="notes-stat-card">
+                            <div className="notes-stat-icon notes-stat-icon-total"><FileText size={16} /></div>
+                            <div>
+                                <div className="notes-stat-value">{stats.total}</div>
+                                <div className="notes-stat-label">Total notes</div>
+                            </div>
+                        </div>
+                        <div className="notes-stat-card">
+                            <div className="notes-stat-icon notes-stat-icon-favorite"><Star size={16} /></div>
+                            <div>
+                                <div className="notes-stat-value">{stats.favorites}</div>
+                                <div className="notes-stat-label">Favorites</div>
+                            </div>
+                        </div>
+                        <div className="notes-stat-card">
+                            <div className="notes-stat-icon notes-stat-icon-drawing"><PenTool size={16} /></div>
+                            <div>
+                                <div className="notes-stat-value">{stats.drawings}</div>
+                                <div className="notes-stat-label">Sketches</div>
+                            </div>
+                        </div>
+                        <div className="notes-stat-card">
+                            <div className="notes-stat-icon notes-stat-icon-recent"><Sparkles size={16} /></div>
+                            <div>
+                                <div className="notes-stat-value">{stats.lastUpdatedLabel}</div>
+                                <div className="notes-stat-label">Latest update</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* Context Menu */}
+            {notes.length === 0 ? (
+                <div className="notes-empty-state">
+                    <div className="notes-empty-icon"><Sparkles size={22} /></div>
+                    <h3>No notes yet</h3>
+                    <p>Start a new note and your writing space will begin to fill up here.</p>
+                    <button className="notes-primary-action" onClick={onNewNote}>
+                        <Plus size={18} />
+                        Create your first note
+                    </button>
+                </div>
+            ) : (
+                <div className="note-grid note-grid-redesigned" style={{ marginTop: isMobile ? '1rem' : '1.25rem' }}>
+                    <button
+                        onClick={onNewNote}
+                        className="notes-create-card"
+                        style={{ minHeight: isMobile ? '220px' : '260px' }}
+                    >
+                        <div className="notes-create-badge">
+                            <Plus size={22} strokeWidth={2.7} />
+                        </div>
+                        <div>
+                            <div className="notes-create-title">New note</div>
+                            <div className="notes-create-copy">Capture a thought, plan a task, or start a longer journal entry.</div>
+                        </div>
+                    </button>
+
+                    {notes.map((note) => (
+                        <NoteCard
+                            key={note.id}
+                            note={note}
+                            onClick={onNoteClick}
+                            onContextMenu={handleContextMenu}
+                        />
+                    ))}
+                </div>
+            )}
+
             {contextMenu && activeNote && (
                 <div
                     style={{
@@ -141,26 +183,28 @@ export const NoteList: React.FC<NoteListProps> = ({
                         zIndex: 9999,
                         background: 'var(--bg-card)',
                         border: '1px solid var(--border-subtle)',
-                        borderRadius: '12px',
+                        borderRadius: '16px',
                         padding: '0.5rem',
-                        boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+                        boxShadow: '0 20px 45px rgba(15, 23, 42, 0.18)',
                         backdropFilter: 'blur(20px)',
                         minWidth: '220px',
                         animation: 'fadeIn 0.1s ease-out'
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div style={{
-                        padding: '0.5rem 0.75rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        color: 'var(--text-muted)',
-                        borderBottom: '1px solid var(--border-subtle)',
-                        marginBottom: '0.5rem'
-                    }}>
-                        Note Actions
+                    <div
+                        style={{
+                            padding: '0.55rem 0.8rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: 'var(--text-muted)',
+                            borderBottom: '1px solid var(--border-subtle)',
+                            marginBottom: '0.5rem'
+                        }}
+                    >
+                        Note actions
                     </div>
 
                     <button
@@ -169,7 +213,7 @@ export const NoteList: React.FC<NoteListProps> = ({
                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                        <ExternalLink size={16} /> Open Note
+                        <ExternalLink size={16} /> Open note
                     </button>
 
                     {onToggleFavorite && (
@@ -179,8 +223,8 @@ export const NoteList: React.FC<NoteListProps> = ({
                             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                            <Star size={16} fill={activeNote.isFavorite ? "currentColor" : "none"} color={activeNote.isFavorite ? "#f59e0b" : "currentColor"} />
-                            {activeNote.isFavorite ? 'Remove form Favorites' : 'Add to Favorites'}
+                            <Star size={16} fill={activeNote.isFavorite ? 'currentColor' : 'none'} color={activeNote.isFavorite ? '#f59e0b' : 'currentColor'} />
+                            {activeNote.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                         </button>
                     )}
 
@@ -204,7 +248,7 @@ export const NoteList: React.FC<NoteListProps> = ({
                             onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                            <Trash2 size={16} /> Delete Note
+                            <Trash2 size={16} /> Delete note
                         </button>
                     )}
                 </div>

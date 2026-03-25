@@ -28,6 +28,7 @@ import { SyncSettings } from './features/Sync/SyncSettings';
 import { SyncManager } from './features/Sync/SyncManager';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SettingsView } from './features/Settings';
+import { VoiceNotesTab } from './features/VoiceNotes';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ThemeProvider, useThemeContext } from './context/ThemeContext';
 import { TimeProvider } from './context/TimeContext';
@@ -49,7 +50,7 @@ function AuthenticatedApp() {
   const currentBgDarkness = theme === 'dark' ? bgDarknessDark : bgDarknessLight;
   const currentBgBlur = theme === 'dark' ? bgBlurLight : bgBlurDark;
 
-  const [view, setView] = useState<'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai' | 'voice'>('dashboard');
   const [activeNote, setActiveNote] = useState<Note | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
   const [autoFocusTask, setAutoFocusTask] = useState(false);
@@ -239,7 +240,7 @@ function AuthenticatedApp() {
     >
       <Layout
         isFocusedContent={!!activeNote || isCreating}
-        disableGlobalSwipe={!!activeNote || view === 'calendar' || view === 'ai'}
+        disableGlobalSwipe={!!activeNote || view === 'calendar' || view === 'ai' || view === 'voice'}
         sidebar={<Sidebar currentView={view} onChangeView={(v) => { if (v === view) setResetKey(p => p + 1); else { viewHistory.current.push(view); setView(v); } setActiveNote(undefined); setIsCreating(false); setAutoFocusTask(false); }} onLogout={logout} />}
       >
         <SyncManager />
@@ -300,17 +301,95 @@ function AuthenticatedApp() {
                   case 'sync': return <SyncSettings />;
                   case 'settings': return <SettingsView />;
                   case 'ai': return <AIView />;
+                  case 'voice': return <VoiceNotesTab />;
                   // ai view removed
                   case 'journal':
                   case 'favorites':
                     return (
                       <div style={{ height: '100%', position: 'relative' }}>
-                        <div className="container" style={{ position: 'relative', zIndex: 1, padding: isMobile ? '3.5rem 1rem 1rem 1rem' : '2rem' }}>
-                          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '1.5rem', gap: '1rem' }}>
-                            <h1 style={{ fontSize: isMobile ? '1.8rem' : '2.5rem', fontWeight: 800 }}>{view === 'favorites' ? 'Favorites' : 'Notes'}</h1>
-                            <div style={{ display: 'flex', alignItems: 'center', width: isMobile ? '100%' : 'auto', gap: '0.5rem' }}>
-                              <button onClick={() => { openNote({ id: crypto.randomUUID(), title: '', content: '', createdAt: Date.now(), updatedAt: Date.now(), type: 'drawing' }); setIsCreating(true); }} style={{ background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--accent-primary)', border: '1px solid var(--border-subtle)' }}><PenTool size={18} /> Scribble</button>
-                              <div style={{ background: 'var(--bg-card)', padding: '0.5rem 0.75rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', maxWidth: '300px', border: '1px solid var(--border-subtle)' }}><Search size={18} color="var(--text-muted)" /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%' }} /></div>
+                        <div className="container" style={{ position: 'relative', zIndex: 1, padding: isMobile ? '3.5rem 1rem 1.25rem 1rem' : '2rem' }}>
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1rem',
+                            marginBottom: isMobile ? '1rem' : '1.4rem',
+                            padding: isMobile ? '1rem' : '1.2rem',
+                            borderRadius: isMobile ? '24px' : '30px',
+                            background: theme === 'dark' ? 'linear-gradient(180deg, rgba(15,23,42,0.78), rgba(15,23,42,0.62))' : 'linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.52))',
+                            border: theme === 'dark' ? '1px solid rgba(51, 65, 85, 0.9)' : '1px solid rgba(226, 232, 240, 0.9)',
+                            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)',
+                            backdropFilter: 'blur(16px)'
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '1rem' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                <span style={{ fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--accent-primary)' }}>
+                                  {view === 'favorites' ? 'Pinned writing' : 'Writing space'}
+                                </span>
+                                <h1 style={{ margin: 0, fontSize: isMobile ? '1.9rem' : '2.7rem', lineHeight: 1.05, letterSpacing: '-0.04em', fontWeight: 900 }}>
+                                  {view === 'favorites' ? 'Favorites' : 'Notes'}
+                                </h1>
+                                <p style={{ margin: 0, color: 'var(--text-secondary)', maxWidth: '640px', lineHeight: 1.7 }}>
+                                  Find what matters faster with clearer cards, softer visuals, and a workspace that keeps your notes easy to scan.
+                                </p>
+                              </div>
+
+                              <button
+                                onClick={() => { openNote({ id: crypto.randomUUID(), title: '', content: '', createdAt: Date.now(), updatedAt: Date.now(), type: 'drawing' }); setIsCreating(true); }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.6rem',
+                                  padding: '0.9rem 1.1rem',
+                                  borderRadius: '999px',
+                                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.96), rgba(129, 140, 248, 0.96))',
+                                  color: 'white',
+                                  boxShadow: '0 14px 28px rgba(99, 102, 241, 0.22)',
+                                  fontWeight: 700,
+                                  alignSelf: isMobile ? 'stretch' : 'auto',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <PenTool size={18} /> Scribble note
+                              </button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'stretch', gap: '0.75rem' }}>
+                              <div style={{
+                                flex: 1,
+                                background: theme === 'dark' ? 'rgba(15,23,42,0.72)' : 'rgba(255,255,255,0.72)',
+                                padding: '0.85rem 1rem',
+                                borderRadius: '18px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                border: theme === 'dark' ? '1px solid rgba(51, 65, 85, 0.85)' : '1px solid rgba(226, 232, 240, 0.85)'
+                              }}>
+                                <Search size={18} color="var(--text-muted)" />
+                                <input
+                                  type="text"
+                                  placeholder={view === 'favorites' ? 'Search favorites...' : 'Search notes...'}
+                                  value={searchQuery}
+                                  onChange={(e) => setSearchQuery(e.target.value)}
+                                  style={{ width: '100%', fontSize: '0.95rem' }}
+                                />
+                              </div>
+
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.55rem',
+                                padding: '0.85rem 1rem',
+                                borderRadius: '18px',
+                                background: theme === 'dark' ? 'rgba(15,23,42,0.72)' : 'rgba(255,255,255,0.72)',
+                                border: theme === 'dark' ? '1px solid rgba(51, 65, 85, 0.85)' : '1px solid rgba(226, 232, 240, 0.85)',
+                                color: 'var(--text-secondary)',
+                                fontWeight: 600,
+                                minWidth: isMobile ? 'auto' : '220px',
+                                justifyContent: 'center'
+                              }}>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{filteredNotes.length}</span>
+                                <span>{filteredNotes.length === 1 ? 'result visible' : 'results visible'}</span>
+                              </div>
                             </div>
                           </div>
                           <NoteList notes={filteredNotes} loading={loading} onNoteClick={openNote} onNewNote={() => { openNote(undefined); setIsCreating(true); }} onDelete={(id) => { setNoteToDelete(id); setIsDeleteModalOpen(true); }} onDuplicate={(n) => addNote(`${n.title} (Copy)`, n.content, n)} onToggleFavorite={(n) => updateNote(n.id, { isFavorite: !n.isFavorite })} />

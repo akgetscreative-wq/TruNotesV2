@@ -138,7 +138,7 @@ const NoteCarousel: React.FC<{ notes: Note[]; onNoteClick: (note: Note) => void 
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>
-                                        {format(new Date(note.updatedAt), 'MMM d')}
+                                        {format(new Date(note.createdAt), 'MMM d')}
                                     </span>
                                     <span style={{
                                         background: 'rgba(0,0,0,0.04)',
@@ -213,63 +213,90 @@ const TaskProgressRing: React.FC<{ completed: number; total: number }> = ({ comp
 };
 
 // ── Stat Row Item ──
-const StatRow: React.FC<{
-    icon: React.ReactNode;
-    label: string;
-    value: string | number;
-    color: string;
-    onClick?: () => void;
-    delay?: number;
-}> = ({ icon, label, value, color, onClick, delay = 0 }) => {
+const TodayCalendarCard: React.FC<{ now: Date; onClick?: () => void; isMobile: boolean; dark: boolean }> = ({ now, onClick, isMobile, dark }) => {
+    if (isMobile) {
+        return (
+            <motion.button type="button" initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.32, ease: 'easeOut' }} onClick={onClick} style={{ border: '1px solid rgba(255,255,255,0.1)', cursor: onClick ? 'pointer' : 'default', borderRadius: '22px', padding: '0.9rem 1rem', width: '100%', background: dark ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.42) 0%, rgba(190, 24, 93, 0.32) 100%)' : 'linear-gradient(135deg, rgba(139, 92, 246, 0.96) 0%, rgba(236, 72, 153, 0.92) 100%)', boxShadow: dark ? '0 18px 36px rgba(2, 6, 23, 0.34)' : '0 16px 34px rgba(99, 102, 241, 0.18)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.9rem', color: 'white', textAlign: 'left', overflow: 'hidden', position: 'relative', backdropFilter: 'blur(18px)' }}>
+                <div aria-hidden style={{ position: 'absolute', right: '-18px', top: '-16px', width: '84px', height: '84px', borderRadius: '999px', background: dark ? 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 72%)' : 'radial-gradient(circle, rgba(255,255,255,0.22) 0%, transparent 72%)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', position: 'relative', zIndex: 1 }}>
+                    <div style={{ minWidth: '54px', height: '54px', borderRadius: '18px', background: 'rgba(255,255,255,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)' }}>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 900, lineHeight: 1 }}>{format(now, 'd')}</div>
+                        <div style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.12em', opacity: 0.9 }}>{format(now, 'EEE').toUpperCase()}</div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.82 }}>{format(now, 'EEEE')}</div>
+                        <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '0.18rem' }}>{format(now, 'MMMM d')}</div>
+                        <div style={{ fontSize: '0.78rem', opacity: 0.8, marginTop: '0.16rem' }}>Open calendar</div>
+                    </div>
+                </div>
+                <ChevronRight size={18} color="rgba(255,255,255,0.92)" style={{ position: 'relative', zIndex: 1, flexShrink: 0 }} />
+            </motion.button>
+        );
+    }
+
     return (
-        <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay, duration: 0.4, ease: 'easeOut' }}
-            onClick={onClick}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.85rem',
-                padding: '0.9rem 1rem',
-                background: 'rgba(255,255,255,0.04)',
-                borderRadius: '16px',
-                border: '1px solid rgba(255,255,255,0.06)',
-                cursor: onClick ? 'pointer' : 'default',
-                transition: 'background 0.2s'
-            }}
-        >
-            <div style={{
-                width: 40, height: 40,
-                borderRadius: '12px',
-                background: `${color}20`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0
-            }}>
-                {icon}
+        <motion.button type="button" initial={{ opacity: 0, scale: 0.92, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.4, ease: 'easeOut' }} onClick={onClick} style={{ border: '1px solid rgba(255,255,255,0.12)', cursor: onClick ? 'pointer' : 'default', borderRadius: '28px', padding: 0, minWidth: '152px', background: dark ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.84) 100%)' : 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(244,247,255,0.96) 100%)', boxShadow: dark ? '0 22px 44px rgba(2, 6, 23, 0.34)' : '0 16px 36px rgba(99, 102, 241, 0.14)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', position: 'relative', overflow: 'hidden', backdropFilter: 'blur(18px)' }}>
+            <motion.div aria-hidden animate={{ opacity: [0.32, 0.6, 0.32], scale: [1, 1.04, 1] }} transition={{ duration: 4.6, repeat: Infinity, ease: 'easeInOut' }} style={{ position: 'absolute', right: '-16px', top: '-12px', width: '92px', height: '92px', borderRadius: '999px', background: dark ? 'radial-gradient(circle, rgba(244, 114, 182, 0.18) 0%, transparent 72%)' : 'radial-gradient(circle, rgba(254, 205, 211, 0.48) 0%, transparent 72%)' }} />
+            <div style={{ position: 'relative', padding: '0.82rem 1rem 0.96rem 1rem', background: dark ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.52) 0%, rgba(190, 24, 93, 0.42) 100%)' : 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)', color: 'white', textAlign: 'left' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                    <div>
+                        <div style={{ fontSize: '0.66rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.9 }}>{format(now, 'EEEE')}</div>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, marginTop: '0.2rem', opacity: 0.92 }}>{format(now, 'MMMM')}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>{[0, 1].map((ring) => (<span key={ring} style={{ width: '10px', height: '10px', borderRadius: '999px', background: 'rgba(255,255,255,0.9)' }} />))}</div>
+                </div>
             </div>
-            <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                {label}
-            </span>
-            <span style={{
-                fontSize: '1rem', fontWeight: 700,
-                background: `${color}25`,
-                color: color,
-                padding: '0.2rem 0.65rem',
-                borderRadius: '10px',
-                minWidth: '28px',
-                textAlign: 'center'
-            }}>
-                {value}
-            </span>
-            {onClick && <ChevronRight size={16} color="var(--text-muted)" />}
-        </motion.div>
+            <div style={{ padding: '1rem 1.1rem 1.12rem 1.1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.28rem', position: 'relative' }}>
+                <motion.div animate={{ y: [0, -2, 0] }} transition={{ duration: 2.3, repeat: Infinity, ease: 'easeInOut' }} style={{ fontSize: '2.8rem', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.08em', color: dark ? '#f8fafc' : '#1f2a44' }}>{format(now, 'd')}</motion.div>
+                <div style={{ fontSize: '0.76rem', fontWeight: 700, color: dark ? 'rgba(226,232,240,0.7)' : '#64748b', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{format(now, 'EEE')}</div>
+                <div style={{ marginTop: '0.35rem', padding: '0.34rem 0.7rem', borderRadius: '999px', background: dark ? 'rgba(99, 102, 241, 0.18)' : 'linear-gradient(135deg, rgba(219, 234, 254, 0.95), rgba(254, 226, 226, 0.9))', color: dark ? '#c7d2fe' : '#4f46e5', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.04em' }}>Open calendar</div>
+            </div>
+        </motion.button>
     );
 };
 
-// ── Main Dashboard ──
+const QuickLinkCard: React.FC<{
+    icon: React.ReactNode;
+    title: string;
+    subtitle: string;
+    accent: string;
+    onClick?: () => void;
+    dark?: boolean;
+}> = ({ icon, title, subtitle, accent, onClick, dark = false }) => {
+    return (
+        <motion.button
+            type="button"
+            whileHover={{ y: -3, scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onClick}
+            style={{
+                width: '100%',
+                border: dark ? '1px solid rgba(148,163,184,0.12)' : '1px solid rgba(255,255,255,0.5)',
+                borderRadius: '20px',
+                padding: '0.9rem',
+                background: dark ? 'linear-gradient(180deg, rgba(15,23,42,0.74) 0%, rgba(30,41,59,0.64) 100%)' : 'linear-gradient(180deg, rgba(255,255,255,0.84) 0%, rgba(246,248,255,0.94) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.8rem',
+                textAlign: 'left',
+                cursor: onClick ? 'pointer' : 'default',
+                boxShadow: dark ? '0 16px 30px rgba(2,6,23,0.22)' : '0 12px 30px rgba(148, 163, 184, 0.1)',
+                backdropFilter: 'blur(14px)'
+            }}
+        >
+            <div style={{ width: 40, height: 40, borderRadius: '14px', background: `${accent}20`, color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: dark ? '#f8fafc' : '#1f2a44', marginBottom: '0.14rem' }}>{title}</div>
+                <div style={{ fontSize: '0.8rem', color: dark ? 'rgba(226,232,240,0.68)' : '#66758f', lineHeight: 1.45 }}>{subtitle}</div>
+            </div>
+            <ChevronRight size={16} color={dark ? 'rgba(226,232,240,0.4)' : '#94a3b8'} />
+        </motion.button>
+    );
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewNote, onNewTask, onViewCalendar, onViewJournal, onViewTasks, onViewFavorites, onViewAI, onViewNotebooks }) => {
     const { theme } = useThemeContext();
+    const dark = theme === 'dark';
     const { username } = useAuth();
     const { getTodosByDate, toggleTodo, todos } = useTodos();
     const { dateKey, now } = useCurrentTime();
@@ -280,6 +307,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
     const favoriteCount = notes.filter(n => n.isFavorite).length;
     const completedToday = todayTasks.filter(t => t.completed).length;
     const pendingTasks = todos.filter(t => !t.completed && t.targetDate !== tomorrowStr && t.targetDate !== dateKey);
+    const notesToday = notes.filter(note => format(new Date(note.createdAt), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')).length;
+    const focusTasks = todayTasks.slice(0, 4);
+    const completionRatio = todayTasks.length > 0 ? Math.round((completedToday / todayTasks.length) * 100) : 0;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
     const getGreeting = () => {
         const hour = new Date().getHours();
@@ -288,343 +319,194 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
         return 'Good Evening';
     };
 
-    const getEmoji = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return '☀️';
-        if (hour < 18) return '🌤️';
-        return '🌃';
-    };
-
-    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const shellBg = dark
+        ? 'linear-gradient(180deg, rgba(15,23,42,0.78) 0%, rgba(15,23,42,0.62) 100%)'
+        : 'linear-gradient(180deg, rgba(255,255,255,0.84) 0%, rgba(247,249,255,0.94) 100%)';
+    const shellBorder = dark ? '1px solid rgba(148,163,184,0.12)' : '1px solid rgba(255,255,255,0.45)';
+    const shellShadow = dark ? '0 22px 48px rgba(2, 6, 23, 0.34)' : '0 18px 42px rgba(148, 163, 184, 0.08)';
+    const muted = dark ? 'rgba(226,232,240,0.68)' : '#64748b';
+    const title = dark ? '#f8fafc' : '#1f2a44';
+    const softPanel = dark ? 'rgba(15,23,42,0.52)' : 'rgba(255,255,255,0.7)';
 
     return (
         <div className="fade-in dashboard-scrollbar" style={{ paddingBottom: '4rem', position: 'relative' }}>
             <div style={{
-                maxWidth: isMobile ? '100%' : '720px',
+                maxWidth: isMobile ? '100%' : '940px',
                 margin: '0 auto',
-                padding: isMobile ? '1rem 1.15rem' : '2rem',
-                paddingTop: isMobile ? 'calc(var(--safe-top) + 3rem)' : '3rem',
+                padding: isMobile ? '0.9rem 1rem' : '2.2rem',
+                paddingTop: isMobile ? 'calc(var(--safe-top) + 2.25rem)' : '3rem',
                 position: 'relative',
                 zIndex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: isMobile ? '0.85rem' : '1.1rem'
             }}>
-                {/* ── Header ── */}
-                <motion.div
-                    initial={{ opacity: 0, y: -15 }}
+                <motion.section
+                    initial={{ opacity: 0, y: -12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    style={{ marginBottom: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                >
-                    <h1 style={{
-                        fontSize: isMobile ? '2rem' : '2.8rem',
-                        fontWeight: 800,
-                        lineHeight: 1.15,
-                        color: 'var(--text-primary)',
-                        letterSpacing: '-0.03em',
-                    }}>
-                        {getGreeting()},
-                        <br />
-                        <span style={{
-                            background: 'linear-gradient(135deg, #a855f7, #ec4899)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                        }}>
-                            {username ? username.charAt(0).toUpperCase() + username.slice(1) : 'there'}
-                        </span>{' '}{getEmoji()}
-                    </h1>
-
-                    <div style={{ display: 'flex', gap: isMobile ? '0.5rem' : '1rem', alignItems: 'center' }}>
-                        <motion.button
-                            whileHover={{ scale: 1.05, boxShadow: '0 12px 30px rgba(6, 182, 212, 0.4)' }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={onNewTask || onViewTasks}
-                            style={{
-                                background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-                                border: 'none',
-                                borderRadius: '24px',
-                                padding: isMobile ? '1rem 1.25rem' : '1.5rem 2.2rem',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.5rem',
-                                cursor: 'pointer',
-                                boxShadow: '0 8px 24px rgba(6, 182, 212, 0.3)',
-                                color: 'white',
-                                height: 'fit-content'
-                            }}
-                        >
-                            <Plus size={isMobile ? 24 : 32} />
-                            <span style={{
-                                fontSize: isMobile ? '0.85rem' : '1rem',
-                                fontWeight: 800,
-                                letterSpacing: '0.02em',
-                                textTransform: 'uppercase'
-                            }}>
-                                Todo
-                            </span>
-                        </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.05, boxShadow: '0 12px 30px rgba(139, 92, 246, 0.4)' }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={onViewAI}
-                            style={{
-                                background: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
-                                border: 'none',
-                                borderRadius: '24px',
-                                padding: isMobile ? '1rem 1.25rem' : '1.5rem 2.2rem',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.5rem',
-                                cursor: 'pointer',
-                                boxShadow: '0 8px 24px rgba(236,72,153,0.3)',
-                                color: 'white',
-                                height: 'fit-content'
-                            }}
-                        >
-                            <Sparkles size={isMobile ? 24 : 32} fill="rgba(255,255,255,0.2)" />
-                            <span style={{
-                                fontSize: isMobile ? '0.85rem' : '1rem',
-                                fontWeight: 800,
-                                letterSpacing: '0.02em',
-                                textTransform: 'uppercase'
-                            }}>
-                                Akitsu
-                            </span>
-                        </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.05, boxShadow: '0 12px 30px rgba(168, 85, 247, 0.4)' }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={onViewNotebooks}
-                            style={{
-                                background: 'linear-gradient(135deg, #a855f7, #6366f1)',
-                                border: 'none',
-                                borderRadius: '24px',
-                                padding: isMobile ? '1rem 1.25rem' : '1.5rem 2.2rem',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.5rem',
-                                cursor: 'pointer',
-                                boxShadow: '0 8px 24px rgba(168, 85, 247, 0.3)',
-                                color: 'white',
-                                height: 'fit-content'
-                            }}
-                        >
-                            <Book size={isMobile ? 24 : 32} />
-                            <span style={{
-                                fontSize: isMobile ? '0.85rem' : '1rem',
-                                fontWeight: 800,
-                                letterSpacing: '0.02em',
-                                textTransform: 'uppercase'
-                            }}>
-                                Books
-                            </span>
-                        </motion.button>
-                    </div>
-                </motion.div>
-
-                {/* ── Recent Notes Carousel ── */}
-                <NoteCarousel notes={notes} onNoteClick={onNoteClick} />
-
-                {/* ── Task Progress Card ── */}
-                {todayTasks.length > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2, duration: 0.5 }}
-                        onClick={onViewTasks}
-                        style={{
-                            background: theme === 'dark'
-                                ? 'linear-gradient(135deg, rgba(16, 36, 44, 0.9), rgba(20, 44, 38, 0.8))'
-                                : 'linear-gradient(135deg, rgba(240, 250, 255, 0.9), rgba(240, 255, 250, 0.8))',
-                            borderRadius: '20px',
-                            padding: '1.25rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '1rem',
-                            marginBottom: '1.5rem',
-                            border: '1px solid rgba(14, 165, 233, 0.15)',
-                            cursor: 'pointer',
-                            boxShadow: '0 8px 32px rgba(14, 165, 233, 0.12)'
-                        }}
-                    >
-                        <TaskProgressRing completed={completedToday} total={todayTasks.length} />
-                        <div style={{ flex: 1 }}>
-                            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
-                                Today's Progress
-                            </h3>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                {completedToday}/{todayTasks.length} todos completed
-                            </p>
-                            {/* mini progress bar */}
-                            <div style={{
-                                marginTop: '0.5rem',
-                                height: 6,
-                                borderRadius: 3,
-                                background: 'rgba(255,255,255,0.08)',
-                                overflow: 'hidden'
-                            }}>
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${todayTasks.length > 0 ? (completedToday / todayTasks.length) * 100 : 0}%` }}
-                                    transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
-                                    style={{
-                                        height: '100%',
-                                        borderRadius: 3,
-                                        background: 'linear-gradient(90deg, #0ea5e9, #22c55e)'
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* ── Stats Row ── */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.75rem' }}>
-                    <StatRow
-                        icon={<Book size={20} color="#6366f1" />}
-                        label="Total Notes"
-                        value={totalNotes}
-                        color="#6366f1"
-                        onClick={onViewJournal}
-                        delay={0.15}
-                    />
-                    <StatRow
-                        icon={<Star size={20} color="#f59e0b" />}
-                        label="Favorites"
-                        value={favoriteCount}
-                        color="#f59e0b"
-                        onClick={onViewFavorites}
-                        delay={0.25}
-                    />
-                    <StatRow
-                        icon={<CalendarIcon size={20} color="#22c55e" />}
-                        label="Calendar"
-                        value="→"
-                        color="#22c55e"
-                        onClick={onViewCalendar}
-                        delay={0.35}
-                    />
-                    {pendingTasks.length > 0 && (
-                        <StatRow
-                            icon={<CheckSquare size={20} color="#ef4444" />}
-                            label="Pending Todos"
-                            value={pendingTasks.length}
-                            color="#ef4444"
-                            onClick={onViewTasks}
-                            delay={0.45}
-                        />
-                    )}
-                </div>
-
-                {/* ── Today's Tasks (Inline) ── */}
-                {todayTasks.length > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, duration: 0.5 }}
-                        style={{ marginBottom: '1.75rem' }}
-                    >
-                        <div style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            marginBottom: '0.75rem'
-                        }}>
-                            <h2 style={{
-                                fontSize: '1.15rem', fontWeight: 700,
-                                color: 'var(--text-primary)',
-                                display: 'flex', alignItems: 'center', gap: '0.5rem'
-                            }}>
-                                <CheckSquare size={18} color="#a855f7" /> Today's Todos
-                            </h2>
-                            <span
-                                onClick={onViewTasks}
-                                style={{
-                                    fontSize: '0.8rem', color: '#a855f7', cursor: 'pointer',
-                                    fontWeight: 600
-                                }}
-                            >
-                                See All
-                            </span>
-                        </div>
-
-                        <div style={{
-                            display: 'flex', flexDirection: 'column', gap: '0.5rem',
-                            maxHeight: '260px', overflowY: 'auto'
-                        }} className="dashboard-scrollbar">
-                            {todayTasks.map((task, i) => (
-                                <motion.div
-                                    key={task.id}
-                                    initial={{ opacity: 0, x: -15 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.5 + i * 0.05 }}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '0.75rem',
-                                        padding: '0.75rem 1rem',
-                                        background: 'rgba(255,255,255,0.04)',
-                                        borderRadius: '14px',
-                                        border: '1px solid rgba(255,255,255,0.05)',
-                                    }}
-                                >
-                                    <button
-                                        onClick={() => toggleTodo(task)}
-                                        style={{
-                                            width: 22, height: 22, borderRadius: 7, flexShrink: 0,
-                                            border: `2px solid ${task.completed ? '#a855f7' : 'rgba(255,255,255,0.2)'}`,
-                                            background: task.completed ? 'linear-gradient(135deg, #a855f7, #ec4899)' : 'transparent',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            cursor: 'pointer', padding: 0
-                                        }}
-                                    >
-                                        {task.completed && <Check size={12} color="white" strokeWidth={3} />}
-                                    </button>
-                                    <span style={{
-                                        fontSize: '0.9rem', color: 'var(--text-primary)', flex: 1,
-                                        textDecoration: task.completed ? 'line-through' : 'none',
-                                        opacity: task.completed ? 0.5 : 1,
-                                        wordBreak: 'break-word'
-                                    }}>
-                                        {task.text}
-                                    </span>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* ── Quick Actions ── */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.55, duration: 0.5 }}
+                    transition={{ duration: 0.42 }}
                     style={{
-                        marginBottom: '2rem'
+                        borderRadius: isMobile ? '26px' : '30px',
+                        padding: isMobile ? '1rem' : '1.3rem 1.4rem',
+                        background: shellBg,
+                        border: shellBorder,
+                        boxShadow: shellShadow,
+                        backdropFilter: 'blur(18px)'
                     }}
                 >
-                    <button
-                        onClick={onNewNote}
-                        style={{
-                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                            border: 'none',
-                            borderRadius: '16px',
-                            padding: '1.25rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.75rem',
-                            cursor: 'pointer',
-                            boxShadow: '0 8px 24px rgba(99,102,241,0.25)',
-                            width: '100%'
-                        }}
-                    >
-                        <Plus size={24} color="white" />
-                        <span style={{ fontSize: '1rem', fontWeight: 600, color: 'white' }}>New Journal Entry</span>
-                    </button>
-                </motion.div>
+                    <div style={{ fontSize: '0.76rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginBottom: '0.55rem' }}>
+                        Focus dashboard
+                    </div>
+                    <h1 style={{ margin: 0, fontSize: isMobile ? '1.95rem' : '2.9rem', fontWeight: 900, lineHeight: 1.04, color: 'var(--text-primary)', letterSpacing: '-0.05em' }}>
+                        {getGreeting()}, <span style={{ background: 'linear-gradient(135deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{username ? username.charAt(0).toUpperCase() + username.slice(1) : 'there'}</span>
+                    </h1>
+                    <p style={{ margin: '0.62rem 0 0 0', color: 'var(--text-secondary)', fontSize: isMobile ? '0.92rem' : '0.98rem', lineHeight: 1.65, maxWidth: '38rem' }}>
+                        Keep today work-first: current tasks, fast capture, and the notes you are most likely to open next.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, minmax(0, 1fr))' : 'repeat(3, minmax(0, 140px))', gap: '0.65rem', marginTop: '0.92rem' }}>
+                        {[
+                            ['Tasks', todayTasks.length, '#38bdf8'],
+                            ['Done', completedToday, '#22c55e'],
+                            ['Notes', totalNotes, '#818cf8'],
+                        ].map(([labelText, value, color]) => (
+                            <div key={String(labelText)} style={{ padding: isMobile ? '0.72rem' : '0.8rem 0.85rem', borderRadius: '18px', background: softPanel, border: dark ? '1px solid rgba(148,163,184,0.1)' : '1px solid rgba(255,255,255,0.48)' }}>
+                                <div style={{ fontSize: '0.72rem', color: muted, fontWeight: 700, marginBottom: '0.24rem' }}>{labelText}</div>
+                                <div style={{ fontSize: isMobile ? '1.15rem' : '1.3rem', fontWeight: 900, color: String(color) }}>{value}</div>
+                            </div>
+                        ))}
+                    </div>
+                </motion.section>
+
+                {isMobile ? (
+                    <>
+                        <motion.section
+                            initial={{ opacity: 0, y: 14 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.05, duration: 0.38 }}
+                            style={{ borderRadius: '24px', padding: '1rem', background: shellBg, border: shellBorder, boxShadow: shellShadow, backdropFilter: 'blur(18px)' }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', gap: '0.8rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.74rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, marginBottom: '0.2rem' }}>Today</div>
+                                    <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>Work queue</h2>
+                                </div>
+                                <button onClick={onViewTasks} style={{ border: 'none', background: dark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)', color: dark ? '#c7d2fe' : '#6366f1', padding: '0.52rem 0.8rem', borderRadius: '999px', fontWeight: 700, cursor: 'pointer' }}>Open</button>
+                            </div>
+                            {focusTasks.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                    {focusTasks.map((task) => (
+                                        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.82rem 0.9rem', borderRadius: '18px', background: softPanel, border: dark ? '1px solid rgba(148,163,184,0.08)' : '1px solid rgba(255,255,255,0.52)' }}>
+                                            <button onClick={() => toggleTodo(task)} style={{ width: 22, height: 22, borderRadius: 8, flexShrink: 0, border: `2px solid ${task.completed ? '#22c55e' : 'rgba(148, 163, 184, 0.45)'}`, background: task.completed ? 'linear-gradient(135deg, #22c55e, #14b8a6)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                                                {task.completed && <Check size={11} color="white" strokeWidth={3} />}
+                                            </button>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.58 : 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.text}</div>
+                                                <div style={{ fontSize: '0.76rem', color: muted, marginTop: '0.14rem' }}>{task.completed ? 'Completed' : 'In focus today'}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{ padding: '0.95rem', borderRadius: '18px', background: softPanel, color: 'var(--text-secondary)', lineHeight: 1.6 }}>No tasks scheduled for today.</div>
+                            )}
+                        </motion.section>
+
+                        <TodayCalendarCard now={now} onClick={onViewCalendar} isMobile={true} dark={dark} />
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <QuickLinkCard icon={<Plus size={18} />} title="New note" subtitle="Capture fast" accent="#818cf8" onClick={onNewNote} dark={dark} />
+                            <QuickLinkCard icon={<CheckSquare size={18} />} title="New task" subtitle="Add today" accent="#22d3ee" onClick={onNewTask || onViewTasks} dark={dark} />
+                            <QuickLinkCard icon={<Book size={18} />} title={`Notes (${totalNotes})`} subtitle="Open notes" accent="#6366f1" onClick={onViewJournal} dark={dark} />
+                            <QuickLinkCard icon={<Star size={18} />} title={`Favorites (${favoriteCount})`} subtitle="Pinned notes" accent="#f59e0b" onClick={onViewFavorites} dark={dark} />
+                        </div>
+                    </>
+                ) : (
+                    <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) auto', gap: '1rem', alignItems: 'stretch' }}>
+                        <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.38 }} style={{ borderRadius: '28px', padding: '1.15rem', background: shellBg, border: shellBorder, boxShadow: shellShadow, backdropFilter: 'blur(18px)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem' }}>
+                                <QuickLinkCard icon={<Plus size={18} />} title="New note" subtitle="Capture a thought fast" accent="#6366f1" onClick={onNewNote} dark={dark} />
+                                <QuickLinkCard icon={<CheckSquare size={18} />} title="New task" subtitle="Add work for today" accent="#06b6d4" onClick={onNewTask || onViewTasks} dark={dark} />
+                                <QuickLinkCard icon={<CalendarIcon size={18} />} title="Calendar" subtitle="See the month clearly" accent="#22c55e" onClick={onViewCalendar} dark={dark} />
+                                <QuickLinkCard icon={<Sparkles size={18} />} title="Akitsu" subtitle="Ask for help instantly" accent="#ec4899" onClick={onViewAI} dark={dark} />
+                            </div>
+                        </motion.section>
+                        <TodayCalendarCard now={now} onClick={onViewCalendar} isMobile={false} dark={dark} />
+                    </section>
+                )}
+
+                <section style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.24fr) minmax(280px, 0.96fr)', gap: '1rem' }}>
+                    {!isMobile && (
+                        <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }} style={{ borderRadius: '28px', padding: '1.15rem', background: shellBg, border: shellBorder, boxShadow: shellShadow, backdropFilter: 'blur(18px)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem', gap: '1rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.76rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, marginBottom: '0.24rem' }}>Today</div>
+                                    <h2 style={{ margin: 0, fontSize: '1.28rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>Work queue</h2>
+                                </div>
+                                <button onClick={onViewTasks} style={{ border: 'none', background: dark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)', color: dark ? '#c7d2fe' : '#6366f1', padding: '0.56rem 0.84rem', borderRadius: '999px', fontWeight: 700, cursor: 'pointer' }}>Open tasks</button>
+                            </div>
+                            {focusTasks.length > 0 ? (
+                                <div className="dashboard-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '340px', overflowY: 'auto' }}>
+                                    {focusTasks.map((task, index) => (
+                                        <motion.div key={task.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.16 + index * 0.05 }} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.9rem 1rem', borderRadius: '20px', background: softPanel, border: dark ? '1px solid rgba(148,163,184,0.08)' : '1px solid rgba(255,255,255,0.55)' }}>
+                                            <button onClick={() => toggleTodo(task)} style={{ width: 24, height: 24, borderRadius: 8, flexShrink: 0, border: `2px solid ${task.completed ? '#22c55e' : 'rgba(148, 163, 184, 0.45)'}`, background: task.completed ? 'linear-gradient(135deg, #22c55e, #14b8a6)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                                                {task.completed && <Check size={12} color="white" strokeWidth={3} />}
+                                            </button>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.55 : 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</div>
+                                                <div style={{ fontSize: '0.78rem', color: muted, marginTop: '0.18rem' }}>{task.completed ? 'Completed' : 'In focus today'}</div>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{ padding: '1rem', borderRadius: '20px', background: softPanel, color: 'var(--text-secondary)', lineHeight: 1.65 }}>No tasks scheduled for today.</div>
+                            )}
+                        </motion.section>
+                    )}
+
+                    <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14, duration: 0.4 }} style={{ borderRadius: isMobile ? '24px' : '28px', padding: isMobile ? '1rem' : '1.15rem', background: dark ? 'linear-gradient(155deg, rgba(30,41,59,0.74) 0%, rgba(15,23,42,0.76) 100%)' : 'linear-gradient(155deg, rgba(240,249,255,0.88) 0%, rgba(250,245,255,0.92) 52%, rgba(255,247,237,0.9) 100%)', border: shellBorder, boxShadow: shellShadow, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'auto minmax(0, 1fr)', gap: '1rem', alignItems: 'center', backdropFilter: 'blur(18px)' }}>
+                        <TaskProgressRing completed={completedToday} total={todayTasks.length || 1} />
+                        <div>
+                            <div style={{ fontSize: '0.76rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, marginBottom: '0.35rem' }}>Today at a glance</div>
+                            <div style={{ fontSize: isMobile ? '1.12rem' : '1.32rem', fontWeight: 900, color: title, letterSpacing: '-0.03em', marginBottom: '0.72rem' }}>
+                                {todayTasks.length > 0 ? `${completionRatio}% of today's work is complete` : 'You have a clean slate today'}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: '0.7rem' }}>
+                                {[
+                                    ['Today tasks', todayTasks.length, '#38bdf8'],
+                                    ['Completed', completedToday, '#22c55e'],
+                                    ['Notes today', notesToday, '#818cf8'],
+                                    ['Backlog', pendingTasks.length, '#f97316'],
+                                ].map(([labelText, value, color]) => (
+                                    <div key={String(labelText)} style={{ padding: '0.8rem 0.85rem', borderRadius: '18px', background: softPanel, border: dark ? '1px solid rgba(148,163,184,0.08)' : '1px solid rgba(255,255,255,0.55)' }}>
+                                        <div style={{ fontSize: '0.74rem', color: muted, marginBottom: '0.28rem', fontWeight: 700 }}>{labelText}</div>
+                                        <div style={{ fontSize: '1.18rem', fontWeight: 900, color: String(color) }}>{value}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.section>
+
+                    {!isMobile && (
+                        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, duration: 0.4 }} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                            <QuickLinkCard icon={<Book size={18} />} title={`Notes (${totalNotes})`} subtitle="Browse your writing and recent entries" accent="#6366f1" onClick={onViewJournal} dark={dark} />
+                            <QuickLinkCard icon={<Star size={18} />} title={`Favorites (${favoriteCount})`} subtitle="Open the notes you revisit most" accent="#f59e0b" onClick={onViewFavorites} dark={dark} />
+                            <QuickLinkCard icon={<CalendarIcon size={18} />} title="Calendar view" subtitle="See time, plans, and note history" accent="#22c55e" onClick={onViewCalendar} dark={dark} />
+                            <QuickLinkCard icon={<Book size={18} />} title="Notebooks" subtitle="Open your curated notebook spaces" accent="#8b5cf6" onClick={onViewNotebooks} dark={dark} />
+                        </motion.div>
+                    )}
+                </section>
+
+                <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }} style={{ borderRadius: isMobile ? '24px' : '28px', padding: isMobile ? '1rem' : '1.15rem', background: shellBg, border: shellBorder, boxShadow: shellShadow, backdropFilter: 'blur(18px)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div>
+                            <div style={{ fontSize: '0.76rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, marginBottom: '0.24rem' }}>Notes</div>
+                            <h2 style={{ margin: 0, fontSize: isMobile ? '1.16rem' : '1.3rem', fontWeight: 900, color: title, letterSpacing: '-0.03em' }}>Recent writing</h2>
+                        </div>
+                        <button onClick={onNewNote} style={{ border: 'none', background: dark ? 'linear-gradient(135deg, rgba(99,102,241,0.95), rgba(168,85,247,0.9))' : 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', padding: '0.66rem 0.94rem', borderRadius: '999px', fontWeight: 800, cursor: 'pointer' }}>New journal entry</button>
+                    </div>
+                    <NoteCarousel notes={notes} onNoteClick={onNoteClick} />
+                </motion.section>
             </div>
         </div>
     );

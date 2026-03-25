@@ -31,6 +31,8 @@ interface SettingsContextType {
     setAutoBiometricOn: (enabled: boolean) => void;
     skipLoginPage: boolean;
     setSkipLoginPage: (enabled: boolean) => void;
+    voiceAiChargingEnabled: boolean;
+    setVoiceAiChargingEnabled: (enabled: boolean) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -106,6 +108,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return saved === 'true';
     });
 
+    const [voiceAiChargingEnabled, setVoiceAiChargingEnabledState] = useState<boolean>(() => {
+        const saved = localStorage.getItem('trunotes-voice-ai-charging');
+        return saved === 'true';
+    });
+
     const setDashboardBg = (url: string | null) => {
         setDashboardBgState(url);
         if (url) localStorage.setItem('trunotes-dashboard-bg', url);
@@ -165,6 +172,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         localStorage.setItem('trunotes-skip-login', enabled.toString());
     };
 
+    const setVoiceAiChargingEnabled = (enabled: boolean) => {
+        setVoiceAiChargingEnabledState(enabled);
+        localStorage.setItem('trunotes-voice-ai-charging', enabled.toString());
+    };
+
     const addCustomWallpaper = (url: string) => {
         const newWallpapers = [...customWallpapers, url];
         setCustomWallpapers(newWallpapers);
@@ -203,7 +215,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             isAutoBiometricOn,
             setAutoBiometricOn,
             skipLoginPage,
-            setSkipLoginPage
+            setSkipLoginPage,
+            voiceAiChargingEnabled,
+            setVoiceAiChargingEnabled
         }}>
             {children}
         </SettingsContext.Provider>

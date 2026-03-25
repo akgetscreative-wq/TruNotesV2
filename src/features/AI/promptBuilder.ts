@@ -58,6 +58,16 @@ Confirm briefly after using a command.`;
     const rawIdentity = localStorage.getItem('AI_DEV_IDENTITY') || defaultIdentity;
     const identity = rawIdentity.replace('{responseStyle}', responseStyle);
 
+    // Fast retrieval path — context has structured data from contextBuilder.
+    // Skip the verbose identity/rules block and history entirely: saves ~400 prefill tokens.
+    // Prefill impact: ~600 tokens → ~150 tokens = ~4x faster first-token latency.
+    if (context?.startsWith('[APP CONTEXT]')) {
+        const slimSystem = `You are Akitsu, a personal assistant in TruNotes. Answer based solely on the data below. Do not invent or assume facts not present in the data.\n${context}`;
+        const sysBlock = `<|im_start|>system\n${slimSystem}<|im_end|>\n`;
+        if (onlySystem) return sysBlock;
+        return sysBlock + `<|im_start|>user\n${userMsg}<|im_end|>\n<|im_start|>assistant\n`;
+    }
+
     // Smartly include app instructions only if needed
     const needsActions = ACTION_KEYWORDS.some(k => userMsg.toLowerCase().includes(k));
     const finalInstructions = identity + (needsActions ? `\n\n${appControlInstruction}` : "");
