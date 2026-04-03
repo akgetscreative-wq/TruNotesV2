@@ -141,7 +141,7 @@ public class AIBridge extends Plugin {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setTitle("Downloading AI Model: " + filename);
             request.setDescription("TruNotes Akitsu");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setAllowedOverMetered(true);
             request.setAllowedOverRoaming(true);
             request.addRequestHeader("User-Agent", "TruNotes/1.0");
@@ -229,7 +229,7 @@ public class AIBridge extends Plugin {
         query.setFilterById(downloadId);
         
         android.database.Cursor cursor = downloadManager.query(query);
-        if (cursor.moveToFirst()) {
+        if (cursor != null && cursor.moveToFirst()) {
                 int bytesDownloadedIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
                 int bytesTotalIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
                 int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
@@ -294,9 +294,35 @@ public class AIBridge extends Plugin {
                 ret.put("path", cleanPath);
                 call.resolve(ret);
         } else {
-            call.reject("Download not found");
+            // DownloadManager may evict finished/failed rows. Fall back to file existence check.
+            String filename = call.getString("filename");
+            File fileOnDisk = null;
+            if (filename != null) {
+                fileOnDisk = new File(getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), filename);
+            }
+
+            JSObject ret = new JSObject();
+            if (fileOnDisk != null && fileOnDisk.exists() && fileOnDisk.length() > 10000000) {
+                ret.put("progress", 1.0);
+                ret.put("status", DownloadManager.STATUS_SUCCESSFUL);
+                ret.put("reason", 0);
+                ret.put("bytesDownloaded", fileOnDisk.length());
+                ret.put("bytesTotal", fileOnDisk.length());
+                ret.put("path", fileOnDisk.getAbsolutePath());
+            } else {
+                ret.put("progress", 0.0);
+                ret.put("status", DownloadManager.STATUS_FAILED);
+                ret.put("reason", DownloadManager.ERROR_UNKNOWN);
+                ret.put("bytesDownloaded", 0);
+                ret.put("bytesTotal", 0);
+                ret.put("path", "");
+            }
+            call.resolve(ret);
         }
-        cursor.close();
+
+        if (cursor != null) {
+            cursor.close();
+        }
     }
 
     @PluginMethod

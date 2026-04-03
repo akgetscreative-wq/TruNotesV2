@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Note } from '../types';
 import { NoteCard } from '../components/NoteCard';
-import { Plus, Trash2, Copy, Star, ExternalLink, FileText, Sparkles, PenTool } from 'lucide-react';
+import { Plus, Trash2, Copy, Star, ExternalLink, Sparkles } from 'lucide-react';
 
 interface NoteListProps {
     notes: Note[];
@@ -40,23 +40,6 @@ export const NoteList: React.FC<NoteListProps> = ({
     };
 
     const activeNote = contextMenu ? notes.find((n) => n.id === contextMenu.noteId) : null;
-    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-
-    const stats = useMemo(() => {
-        const drawings = notes.filter((note) => note.type === 'drawing').length;
-        const favorites = notes.filter((note) => note.isFavorite).length;
-        const lastUpdated = notes.length ? Math.max(...notes.map((note) => note.updatedAt || note.createdAt)) : null;
-
-        return {
-            total: notes.length,
-            drawings,
-            favorites,
-            lastUpdatedLabel: lastUpdated
-                ? new Date(lastUpdated).toLocaleDateString([], { month: 'short', day: 'numeric' })
-                : 'None yet'
-        };
-    }, [notes]);
-
     const menuItemStyle = {
         display: 'flex',
         alignItems: 'center',
@@ -94,49 +77,6 @@ export const NoteList: React.FC<NoteListProps> = ({
 
     return (
         <div className="fade-in" style={{ padding: 0 }}>
-            <div className="notes-overview-shell">
-                <div className="notes-overview-panel">
-                    <div>
-                        <div className="notes-kicker">Notes space</div>
-                        <h2 className="notes-overview-title">Your ideas, sketches, and saved thinking in one calm place.</h2>
-                        <p className="notes-overview-copy">
-                            Browse quickly, spot favorites faster, and jump back into work without digging through clutter.
-                        </p>
-                    </div>
-
-                    <div className="notes-stat-row">
-                        <div className="notes-stat-card">
-                            <div className="notes-stat-icon notes-stat-icon-total"><FileText size={16} /></div>
-                            <div>
-                                <div className="notes-stat-value">{stats.total}</div>
-                                <div className="notes-stat-label">Total notes</div>
-                            </div>
-                        </div>
-                        <div className="notes-stat-card">
-                            <div className="notes-stat-icon notes-stat-icon-favorite"><Star size={16} /></div>
-                            <div>
-                                <div className="notes-stat-value">{stats.favorites}</div>
-                                <div className="notes-stat-label">Favorites</div>
-                            </div>
-                        </div>
-                        <div className="notes-stat-card">
-                            <div className="notes-stat-icon notes-stat-icon-drawing"><PenTool size={16} /></div>
-                            <div>
-                                <div className="notes-stat-value">{stats.drawings}</div>
-                                <div className="notes-stat-label">Sketches</div>
-                            </div>
-                        </div>
-                        <div className="notes-stat-card">
-                            <div className="notes-stat-icon notes-stat-icon-recent"><Sparkles size={16} /></div>
-                            <div>
-                                <div className="notes-stat-value">{stats.lastUpdatedLabel}</div>
-                                <div className="notes-stat-label">Latest update</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             {notes.length === 0 ? (
                 <div className="notes-empty-state">
                     <div className="notes-empty-icon"><Sparkles size={22} /></div>
@@ -148,21 +88,7 @@ export const NoteList: React.FC<NoteListProps> = ({
                     </button>
                 </div>
             ) : (
-                <div className="note-grid note-grid-redesigned" style={{ marginTop: isMobile ? '1rem' : '1.25rem' }}>
-                    <button
-                        onClick={onNewNote}
-                        className="notes-create-card"
-                        style={{ minHeight: isMobile ? '220px' : '260px' }}
-                    >
-                        <div className="notes-create-badge">
-                            <Plus size={22} strokeWidth={2.7} />
-                        </div>
-                        <div>
-                            <div className="notes-create-title">New note</div>
-                            <div className="notes-create-copy">Capture a thought, plan a task, or start a longer journal entry.</div>
-                        </div>
-                    </button>
-
+                <div className="note-grid note-grid-redesigned">
                     {notes.map((note) => (
                         <NoteCard
                             key={note.id}

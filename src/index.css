@@ -510,8 +510,8 @@ input:checked+.slider:before {
 .note-grid-redesigned {
   background: transparent;
   padding: 0;
-  gap: 1.25rem;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .notes-overview-shell {
@@ -759,8 +759,8 @@ input:checked+.slider:before {
 
 @media (max-width: 768px) {
   .note-grid-redesigned {
-    grid-template-columns: 1fr !important;
-    gap: 1rem !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
     padding: 0 !important;
   }
 

@@ -16,10 +16,9 @@ import { useNotes } from './hooks/useNotes';
 import { getJournalBackgroundPath } from './utils/assetLoader';
 import bgImage from './assets/main-bg.png';
 import { DeleteModal } from './components/DeleteModal';
-import { Search, PenTool, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, PenTool, Plus, AlertCircle, CheckCircle } from 'lucide-react';
 import { ScribbleEditor } from './features/Scribble/ScribbleEditor';
 import { AIView } from './features/AI/AIView';
-import { NotebooksView } from './features/Notebooks/NotebooksView';
 // TruNotesAIView removed
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider } from './context/TimerContext';
@@ -28,7 +27,6 @@ import { SyncSettings } from './features/Sync/SyncSettings';
 import { SyncManager } from './features/Sync/SyncManager';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SettingsView } from './features/Settings';
-import { VoiceNotesTab } from './features/VoiceNotes';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ThemeProvider, useThemeContext } from './context/ThemeContext';
 import { TimeProvider } from './context/TimeContext';
@@ -50,7 +48,7 @@ function AuthenticatedApp() {
   const currentBgDarkness = theme === 'dark' ? bgDarknessDark : bgDarknessLight;
   const currentBgBlur = theme === 'dark' ? bgBlurLight : bgBlurDark;
 
-  const [view, setView] = useState<'dashboard' | 'notebooks' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai' | 'voice'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'journal' | 'favorites' | 'tasks' | 'calendar' | 'timer' | 'tomorrow' | 'sync' | 'settings' | 'ai'>('dashboard');
   const [activeNote, setActiveNote] = useState<Note | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
   const [autoFocusTask, setAutoFocusTask] = useState(false);
@@ -236,11 +234,11 @@ function AuthenticatedApp() {
       style={{ height: '100%', width: '100%' }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+        onTouchEnd={handleTouchEnd}
     >
       <Layout
         isFocusedContent={!!activeNote || isCreating}
-        disableGlobalSwipe={!!activeNote || view === 'calendar' || view === 'ai' || view === 'voice'}
+        disableGlobalSwipe={!!activeNote || view === 'calendar' || view === 'ai'}
         sidebar={<Sidebar currentView={view} onChangeView={(v) => { if (v === view) setResetKey(p => p + 1); else { viewHistory.current.push(view); setView(v); } setActiveNote(undefined); setIsCreating(false); setAutoFocusTask(false); }} onLogout={logout} />}
       >
         <SyncManager />
@@ -292,8 +290,7 @@ function AuthenticatedApp() {
             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ width: '100%', height: '100%' }}>
               {(() => {
                 switch (view) {
-                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={openNote} onReorder={saveReorder} onNewNote={() => { openNote(undefined); setIsCreating(true); }} onViewCalendar={() => { viewHistory.current.push(view); setView('calendar'); }} onViewJournal={() => { viewHistory.current.push(view); setView('journal'); }} onViewTasks={() => { viewHistory.current.push(view); setView('tasks'); }} onViewFavorites={() => { viewHistory.current.push(view); setView('favorites'); }} onViewAI={() => { viewHistory.current.push(view); setView('ai'); }} onNewTask={() => { setAutoFocusTask(true); viewHistory.current.push(view); setView('tasks'); }} onViewNotebooks={() => { viewHistory.current.push(view); setView('notebooks'); }} />;
-                  case 'notebooks': return <NotebooksView />;
+                  case 'dashboard': return <Dashboard notes={notes} onNoteClick={openNote} onReorder={saveReorder} onNewNote={() => { openNote(undefined); setIsCreating(true); }} onViewCalendar={() => { viewHistory.current.push(view); setView('calendar'); }} onViewJournal={() => { viewHistory.current.push(view); setView('journal'); }} onViewTasks={() => { viewHistory.current.push(view); setView('tasks'); }} onViewFavorites={() => { viewHistory.current.push(view); setView('favorites'); }} onViewAI={() => { viewHistory.current.push(view); setView('ai'); }} onNewTask={() => { setAutoFocusTask(true); viewHistory.current.push(view); setView('tasks'); }} />;
                   case 'tomorrow': return <TomorrowView />;
                   case 'tasks': return <TodoList autoFocusInput={autoFocusTask} onFocusComplete={() => setAutoFocusTask(false)} />;
                   case 'calendar': return <CalendarView notes={notes} onNoteClick={openNote} resetTrigger={resetKey} />;
@@ -301,13 +298,12 @@ function AuthenticatedApp() {
                   case 'sync': return <SyncSettings />;
                   case 'settings': return <SettingsView />;
                   case 'ai': return <AIView />;
-                  case 'voice': return <VoiceNotesTab />;
                   // ai view removed
                   case 'journal':
                   case 'favorites':
                     return (
                       <div style={{ height: '100%', position: 'relative' }}>
-                        <div className="container" style={{ position: 'relative', zIndex: 1, padding: isMobile ? '3.5rem 1rem 1.25rem 1rem' : '2rem' }}>
+                        <div className="container" style={{ position: 'relative', zIndex: 1, padding: isMobile ? 'calc(var(--safe-top) + 3.2rem) 1rem 1.25rem 1rem' : '2rem' }}>
                           <div style={{
                             display: 'flex',
                             flexDirection: 'column',
@@ -333,24 +329,51 @@ function AuthenticatedApp() {
                                 </p>
                               </div>
 
-                              <button
-                                onClick={() => { openNote({ id: crypto.randomUUID(), title: '', content: '', createdAt: Date.now(), updatedAt: Date.now(), type: 'drawing' }); setIsCreating(true); }}
+                              <div
                                 style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.6rem',
-                                  padding: '0.9rem 1.1rem',
-                                  borderRadius: '999px',
-                                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.96), rgba(129, 140, 248, 0.96))',
-                                  color: 'white',
-                                  boxShadow: '0 14px 28px rgba(99, 102, 241, 0.22)',
-                                  fontWeight: 700,
-                                  alignSelf: isMobile ? 'stretch' : 'auto',
-                                  justifyContent: 'center'
+                                  display: 'flex',
+                                  flexDirection: isMobile ? 'column' : 'row',
+                                  gap: '0.65rem',
+                                  width: isMobile ? '100%' : 'auto'
                                 }}
                               >
-                                <PenTool size={18} /> Scribble note
-                              </button>
+                                <button
+                                  onClick={() => { openNote(undefined); setIsCreating(true); }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.6rem',
+                                    padding: '0.9rem 1.1rem',
+                                    borderRadius: '999px',
+                                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                                    color: 'white',
+                                    boxShadow: '0 14px 28px rgba(37, 99, 235, 0.24)',
+                                    fontWeight: 700,
+                                    alignSelf: isMobile ? 'stretch' : 'auto',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Plus size={18} /> New note
+                                </button>
+                                <button
+                                  onClick={() => { openNote({ id: crypto.randomUUID(), title: '', content: '', createdAt: Date.now(), updatedAt: Date.now(), type: 'drawing' }); setIsCreating(true); }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.6rem',
+                                    padding: '0.9rem 1.1rem',
+                                    borderRadius: '999px',
+                                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.96), rgba(129, 140, 248, 0.96))',
+                                    color: 'white',
+                                    boxShadow: '0 14px 28px rgba(99, 102, 241, 0.22)',
+                                    fontWeight: 700,
+                                    alignSelf: isMobile ? 'stretch' : 'auto',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <PenTool size={18} /> Scribble note
+                                </button>
+                              </div>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'stretch', gap: '0.75rem' }}>

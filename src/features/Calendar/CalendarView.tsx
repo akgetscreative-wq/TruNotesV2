@@ -224,7 +224,7 @@ export const CalendarView: React.FC<CalendarProps> = ({ notes, onNoteClick, rese
                             alignItems: 'center',
                             marginBottom: isMobile ? '1rem' : '1.5rem',
                             maxWidth: '900px',
-                            margin: isMobile ? 'calc(var(--safe-top) + 0.5rem) auto 1rem auto' : '0 auto 1.5rem auto',
+                            margin: isMobile ? 'calc(var(--safe-top) + 1.2rem) auto 1rem auto' : '0 auto 1.5rem auto',
                             width: '100%',
                             padding: isMobile ? '0 0.5rem' : '0'
                         }}>

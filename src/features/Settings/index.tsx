@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Image as ImageIcon, Plus, Trash2, Home, Monitor, Book, User, Shield, Moon, Sun, Database, AlertTriangle, CheckSquare, Coffee, Fingerprint, Info, Heart, Code, Terminal, AudioLines, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, Home, Monitor, Book, User, Shield, Moon, Sun, Database, AlertTriangle, CheckSquare, Coffee, Fingerprint, Info, Heart, Code, Terminal } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useThemeContext } from '../../context/ThemeContext';
@@ -72,9 +72,7 @@ export const SettingsView: React.FC = () => {
         isAutoBiometricOn,
         setAutoBiometricOn,
         skipLoginPage,
-        setSkipLoginPage,
-        voiceAiChargingEnabled,
-        setVoiceAiChargingEnabled
+        setSkipLoginPage
     } = useSettings();
 
     const { username, resetCredentials, logout } = useAuth();
@@ -450,52 +448,6 @@ When asked to add, create, edit, delete, log, or manage anything, ALWAYS use the
                     </div>
                 </div>
             )}
-
-            <div style={sectionStyle}>
-                <h2 style={titleStyle}><AudioLines size={24} color="var(--accent-primary)" /> Voice AI</h2>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', maxWidth: '560px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '240px' }}>
-                        <div style={{
-                            width: '44px', height: '44px', borderRadius: '14px',
-                            background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}>
-                            <Sparkles size={20} color="var(--accent-primary)" />
-                        </div>
-                        <div>
-                            <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Process voice notes while charging</div>
-                            <div style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.6 }}>
-                                Keeps pending voice-note summaries queued for Android WorkManager so extraction can continue later without reopening the app.
-                            </div>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => setVoiceAiChargingEnabled(!voiceAiChargingEnabled)}
-                        style={{
-                            width: '52px',
-                            height: '28px',
-                            borderRadius: '14px',
-                            background: voiceAiChargingEnabled ? 'var(--accent-primary)' : 'rgba(0,0,0,0.3)',
-                            position: 'relative',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 0,
-                            flexShrink: 0
-                        }}
-                    >
-                        <div style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            background: 'white',
-                            position: 'absolute',
-                            top: '3px',
-                            left: voiceAiChargingEnabled ? '27px' : '3px',
-                            transition: 'left 0.2s ease'
-                        }} />
-                    </button>
-                </div>
-            </div>
 
             {/* Cloud Sync Settings */}
             <CloudSyncSection isMobile={isMobile} sectionStyle={sectionStyle} titleStyle={titleStyle} inputStyle={inputStyle} />

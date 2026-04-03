@@ -40,7 +40,7 @@ export const TomorrowView: React.FC = () => {
             maxWidth: '1000px',
             margin: '0 auto',
             padding: isMobile ? '1rem' : '2rem',
-            paddingTop: isMobile ? '4rem' : '2rem',
+            paddingTop: isMobile ? 'calc(var(--safe-top) + 3.5rem)' : '2rem',
             minHeight: '100%',
             position: 'relative',
             zIndex: 1

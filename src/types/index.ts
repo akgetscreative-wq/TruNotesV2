@@ -51,12 +51,3 @@ export interface ChatSession {
     lastModified: number;
     modelName?: string;
 }
-
-export interface Notebook {
-    id: string;
-    title: string;
-    type: 'bubbles' | 'gradient-scribble' | 'mountains' | 'night' | 'geometric';
-    content: string; // The text content of the lined notebook
-    createdAt: number;
-    updatedAt: number;
-}

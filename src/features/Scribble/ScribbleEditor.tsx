@@ -17,10 +17,12 @@ interface ScribbleEditorProps {
 }
 
 export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, onClose, onDelete }) => {
+    const DEFAULT_SCRIBBLE_BG = '#0f2747';
+    const DEFAULT_SCRIBBLE_COLOR = '#ffffff';
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { theme } = useTheme();
     const [isDrawing, setIsDrawing] = useState(false);
-    const [color, setColor] = useState('#000000');
+    const [color, setColor] = useState(DEFAULT_SCRIBBLE_COLOR);
     const [lineWidth, setLineWidth] = useState(3);
     const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
     const [title, setTitle] = useState(note.title || '');
@@ -29,7 +31,7 @@ export const ScribbleEditor: React.FC<ScribbleEditorProps> = ({ note, onSave, on
     const [currentStep, setCurrentStep] = useState(-1);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showBgColorPicker, setShowBgColorPicker] = useState(false);
-    const [bgColor, setBgColor] = useState(theme === 'dark' ? '#2c2c2c' : '#ffffff');
+    const [bgColor, setBgColor] = useState(DEFAULT_SCRIBBLE_BG);
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
     const [showSettings, setShowSettings] = useState(false);
 

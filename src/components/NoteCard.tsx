@@ -85,9 +85,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                 position: 'relative',
                 display: 'flex',
                 flexDirection: 'column',
-                minHeight: isMobile ? '220px' : '260px',
-                padding: isMobile ? '1rem' : '1.2rem',
-                borderRadius: isMobile ? '24px' : '28px',
+                minHeight: isMobile ? '180px' : '212px',
+                padding: isMobile ? '0.82rem' : '1rem',
+                borderRadius: isMobile ? '18px' : '22px',
                 background: theme.tint,
                 border: `1px solid ${theme.border}`,
                 boxShadow: isDark ? '0 24px 50px rgba(2, 6, 23, 0.38)' : '0 20px 45px rgba(15, 23, 42, 0.08)',
@@ -116,7 +116,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                     position: 'absolute',
                     inset: '0 auto auto 0',
                     width: '100%',
-                    height: isMobile ? '88px' : '100px',
+                    height: isMobile ? '72px' : '84px',
                     background: `radial-gradient(circle at top left, ${theme.accent}18, transparent 62%)`,
                     pointerEvents: 'none'
                 }}
@@ -171,8 +171,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                     style={{
                         position: 'relative',
                         overflow: 'hidden',
-                        borderRadius: isMobile ? '18px' : '22px',
-                        minHeight: isMobile ? '116px' : '132px',
+                        borderRadius: isMobile ? '14px' : '18px',
+                        minHeight: isMobile ? '92px' : '108px',
                         background: theme.imageBg,
                         border: '1px solid rgba(148, 163, 184, 0.16)',
                         marginBottom: '0.85rem'
@@ -205,7 +205,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                     <h3
                         style={{
                             margin: 0,
-                            fontSize: isMobile ? '1rem' : '1.18rem',
+                            fontSize: isMobile ? '0.93rem' : '1.03rem',
                             lineHeight: 1.25,
                             fontWeight: 800,
                             color: isDark ? '#f8fafc' : '#1e293b',
@@ -219,10 +219,10 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                         style={{
                             margin: '0.7rem 0 0',
                             color: isDark ? 'rgba(226, 232, 240, 0.92)' : '#334155',
-                            fontSize: isMobile ? '0.82rem' : '0.94rem',
-                            lineHeight: 1.65,
+                            fontSize: isMobile ? '0.77rem' : '0.85rem',
+                            lineHeight: 1.55,
                             display: '-webkit-box',
-                            WebkitLineClamp: isMobile ? 4 : 5,
+                            WebkitLineClamp: isMobile ? 3 : 4,
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
                             opacity: 0.95,
@@ -262,7 +262,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick, onContextMenu
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '0.75rem',
-                    paddingTop: '1rem',
+                    paddingTop: '0.75rem',
                     borderTop: '1px solid rgba(148, 163, 184, 0.14)'
                 }}
             >

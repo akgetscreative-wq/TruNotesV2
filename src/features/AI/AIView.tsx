@@ -7,7 +7,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { useThemeContext } from '../../context/ThemeContext';
-import { useSettings } from '../../context/SettingsContext';
 import { useNotes } from '../../hooks/useNotes';
 import { useTodos } from '../../hooks/useTodos';
 import { useHourlyLog } from '../../hooks/useHourlyLog';
@@ -30,7 +29,6 @@ export const resetAIHistory = () => {
 export const AIView: React.FC = () => {
     const { theme } = useThemeContext();
     const dark = theme === 'dark';
-    const { voiceAiChargingEnabled } = useSettings();
 
     const { notes } = useNotes();
     const { todos, addTodo, toggleTodo, deleteTodo } = useTodos();
@@ -91,14 +89,14 @@ export const AIView: React.FC = () => {
     }, [aiConfig]);
 
     const {
-        models, loadedModel, isDetecting, handleLoadModel, handleAutoLoad, handleDownload, handleDelete, handleOffload
+        models, loadedModel, isDetecting, handleLoadModel, handleAutoLoad, handleDownload, handleCancelDownload, handleDelete, handleOffload
     } = useAIModels((err: string | null) => console.error("Model Error:", err));
 
     useEffect(() => {
-        if (!isDetecting && !loadedModel && models.some(m => m.status === 'downloaded')) {
-            handleAutoLoad(aiConfig);
+        if (!isDetecting && !loadedModel && !models.some(m => m.status === 'loading') && models.some(m => m.status === 'downloaded')) {
+            void handleAutoLoad(aiConfig);
         }
-    }, [isDetecting, loadedModel, models.length]);
+    }, [isDetecting, loadedModel, models, aiConfig, handleAutoLoad]);
 
     const {
         sessions, setSessions, activeSessionId,
@@ -178,6 +176,9 @@ export const AIView: React.FC = () => {
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
+    const headerTopPadding = isMobile
+        ? 'calc(env(safe-area-inset-top, 0px) + 10px)'
+        : '12px';
 
     const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
         if (scrollRef.current) {
@@ -196,7 +197,7 @@ export const AIView: React.FC = () => {
     }, [isGenerating]);
 
     useEffect(() => {
-        if (!voiceAiChargingEnabled || !loadedModel || !batterySupported || !isCharging || !isNoteWritingIdle || isGenerating || summaryBusyId) {
+        if (!loadedModel || !batterySupported || !isCharging || !isNoteWritingIdle || isGenerating || summaryBusyId) {
             return;
         }
 
@@ -214,7 +215,7 @@ export const AIView: React.FC = () => {
             .finally(() => {
                 autoDigestInFlightRef.current = false;
             });
-    }, [voiceAiChargingEnabled, loadedModel, batterySupported, isCharging, isNoteWritingIdle, digestCards, aiConfig, isGenerating, summaryBusyId]);
+    }, [loadedModel, batterySupported, isCharging, isNoteWritingIdle, digestCards, aiConfig, isGenerating, summaryBusyId]);
 
     // Settings card shared style
     const settingsCard: React.CSSProperties = {
@@ -251,7 +252,9 @@ export const AIView: React.FC = () => {
 
             {/* Header */}
             <header style={{
-                padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 18px',
+                paddingTop: headerTopPadding,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderBottom: `1px solid ${dark ? 'rgba(148,163,184,0.12)' : 'rgba(99,102,241,0.1)'}`,
                 background: dark ? 'rgba(2,6,23,0.72)' : 'rgba(255,255,255,0.88)',
                 backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
@@ -331,13 +334,11 @@ export const AIView: React.FC = () => {
                                                 isRefreshing={isRefreshing}
                                                 needsRefresh={needsRefresh}
                                                 chargingMessage={
-                                                    voiceAiChargingEnabled
-                                                        ? (batterySupported
-                                                            ? (isCharging
-                                                                ? (isNoteWritingIdle ? 'Charging mode can refresh this automatically.' : 'Akitsu is waiting until note writing settles before refreshing.')
-                                                                : 'Automatic refresh resumes when the device is charging.')
-                                                            : 'Charging detection is unavailable here, so you can refresh manually.')
-                                                        : 'Enable charging mode in Settings if you want background refresh behavior like Voice Notes.'
+                                                    batterySupported
+                                                        ? (isCharging
+                                                            ? (isNoteWritingIdle ? 'Charging mode can refresh this automatically.' : 'Akitsu is waiting until note writing settles before refreshing.')
+                                                            : 'Automatic refresh resumes when the device is charging.')
+                                                        : 'Charging detection is unavailable here, so you can refresh manually.'
                                                 }
                                                 onRefresh={() => { void runDigestGeneration(context.period); }}
                                                 onChat={() => {
@@ -501,6 +502,25 @@ export const AIView: React.FC = () => {
                     {activeTab === 'models' && (
                         <motion.div key="models" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
                             style={{ height: '100%', overflowY: 'auto', padding: '1.5rem' }} className="dashboard-scrollbar">
+                            {(() => {
+                                const activeDownload = models.find((m: any) => m.status === 'downloading');
+                                if (!activeDownload) return null;
+                                const pct = Math.round(Math.max(0, Math.min(1, activeDownload.progress || 0)) * 100);
+                                return (
+                                    <div style={{
+                                        marginBottom: '1rem',
+                                        padding: '0.85rem 0.95rem',
+                                        borderRadius: '16px',
+                                        border: `1px solid ${dark ? 'rgba(96,165,250,0.24)' : 'rgba(59,130,246,0.26)'}`,
+                                        background: dark ? 'rgba(15,23,42,0.7)' : 'rgba(239,246,255,0.95)',
+                                        color: dark ? '#bfdbfe' : '#1d4ed8',
+                                        fontSize: '0.84rem',
+                                        fontWeight: 700
+                                    }}>
+                                        Notification bar: downloading `{activeDownload.name}` ({pct}%)
+                                    </div>
+                                );
+                            })()}
                             <div style={{
                                 display: 'flex', flexDirection: 'column', gap: '0.8rem', marginBottom: '1.5rem',
                                 padding: '1.05rem 1.1rem', borderRadius: '24px',
@@ -543,6 +563,7 @@ export const AIView: React.FC = () => {
                                     {models.map((m: any) => (
                                         <ModelCard key={m.id} model={m} dark={dark}
                                             onLoad={() => handleLoadModel(m, aiConfig)} onDownload={() => handleDownload(m)}
+                                            onCancel={() => handleCancelDownload(m)}
                                             onDelete={() => handleDelete(m)} onOffload={() => handleOffload()}
                                         />
                                     ))}
@@ -752,6 +773,7 @@ const getDownloadLabel = (model: any) => {
     if (model.status === 'loaded') return 'Ready';
     if (model.status === 'loading') return 'Loading';
     if (model.status === 'downloaded') return 'Downloaded';
+    if (model.status === 'failed') return 'Failed';
     if (model.status !== 'downloading') return 'Available';
     if (model.downloadStatus === 1) return 'Queued';
     if (model.downloadStatus === 2) return 'Downloading';
@@ -762,9 +784,30 @@ const getDownloadLabel = (model: any) => {
 const getDownloadMeta = (model: any) => {
     const downloaded = formatBytes(model.bytesDownloaded);
     const total = formatBytes(model.bytesTotal);
+    const reason = Number(model.reason || 0);
+    const pausedReasons: Record<number, string> = {
+        1: 'Waiting to retry',
+        2: 'Waiting for network',
+        3: 'Queued for Wi-Fi',
+        4: 'Paused by system'
+    };
+    const failedReasons: Record<number, string> = {
+        1000: 'Unknown error',
+        1001: 'File write error',
+        1002: 'HTTP data error',
+        1004: 'Missing remote file',
+        1005: 'Too many redirects',
+        1006: 'Not enough storage',
+        1007: 'Storage unavailable',
+        1008: 'Storage write issue',
+        1009: 'Cannot resume',
+        1010: 'Too many redirects'
+    };
+    if (model.status === 'failed') return model.errorMessage || failedReasons[reason] || 'Download failed';
     if (model.status !== 'downloading') return downloaded && total ? `${downloaded} stored` : 'Ready for use';
     if (model.downloadStatus === 1) return 'Queued and waiting for Android downloader';
-    if (model.downloadStatus === 4) return 'Paused by the system';
+    if (model.downloadStatus === 4) return pausedReasons[reason] || 'Paused by the system';
+    if (model.downloadStatus === 16) return failedReasons[reason] || 'Download failed';
     if (downloaded && total) return `${downloaded} / ${total}`;
     if (downloaded) return `${downloaded} received`;
     return 'Waiting for size info';
@@ -991,7 +1034,7 @@ const SummaryCard = ({
     );
 };
 
-const ModelCard = ({ model, onLoad, onDownload, onDelete, onOffload, dark }: any) => {
+const ModelCard = ({ model, onLoad, onDownload, onCancel, onDelete, onOffload, dark }: any) => {
     const progress = typeof model.progress === 'number' ? Math.max(0, Math.min(1, model.progress)) : 0;
     const progressPercent = Math.round(progress * 100);
     const downloadLabel = getDownloadLabel(model);
@@ -1088,9 +1131,16 @@ const ModelCard = ({ model, onLoad, onDownload, onDelete, onOffload, dark }: any
                 {model.status === 'downloading' && <button disabled style={{ flex: 1, padding: '10px', borderRadius: '16px', background: dark ? 'rgba(59,130,246,0.14)' : 'rgba(99,102,241,0.08)', color: dark ? '#bfdbfe' : '#4f46e5', border: `1px solid ${dark ? 'rgba(96,165,250,0.14)' : 'transparent'}`, fontWeight: 700, fontSize: '0.85rem' }}>{downloadLabel}</button>}
                 {model.status === 'downloaded' && <button onClick={onLoad} style={{ flex: 1, padding: '10px', borderRadius: '16px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: 'white', border: 'none', fontWeight: 700, fontSize: '0.85rem', boxShadow: '0 8px 18px rgba(34,197,94,0.22)' }}>Load in Akitsu</button>}
                 {model.status === 'loaded' && <button onClick={onOffload} style={{ flex: 1, padding: '10px', borderRadius: '16px', background: dark ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.22)', fontWeight: 700, fontSize: '0.85rem' }}>Offload model</button>}
-                <button onClick={onDelete} style={{ background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', border: `1px solid ${dark ? 'rgba(148,163,184,0.08)' : 'transparent'}`, padding: '10px', borderRadius: '16px', color: dark ? 'rgba(255,255,255,0.48)' : '#94a3b8', cursor: 'pointer' }}>
-                    <X size={16} />
-                </button>
+                {model.status === 'failed' && <button onClick={onDownload} style={{ flex: 1, padding: '10px', borderRadius: '16px', background: 'linear-gradient(135deg, #f97316, #ef4444)', color: 'white', border: 'none', fontWeight: 700, fontSize: '0.85rem' }}>Retry download</button>}
+                {model.status === 'downloading' ? (
+                    <button onClick={onCancel} style={{ background: dark ? 'rgba(239,68,68,0.16)' : 'rgba(254,226,226,0.95)', border: `1px solid ${dark ? 'rgba(248,113,113,0.3)' : 'rgba(252,165,165,0.7)'}`, padding: '10px', borderRadius: '16px', color: dark ? '#fca5a5' : '#b91c1c', cursor: 'pointer' }}>
+                        <Square size={16} />
+                    </button>
+                ) : (
+                    <button onClick={onDelete} style={{ background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', border: `1px solid ${dark ? 'rgba(148,163,184,0.08)' : 'transparent'}`, padding: '10px', borderRadius: '16px', color: dark ? 'rgba(255,255,255,0.48)' : '#94a3b8', cursor: 'pointer' }}>
+                        <X size={16} />
+                    </button>
+                )}
             </div>
         </motion.div>
     );

@@ -20,7 +20,6 @@ interface DashboardProps {
     onViewTasks?: () => void;
     onViewFavorites?: () => void;
     onViewAI?: () => void;
-    onViewNotebooks?: () => void;
 }
 
 // ── Swipable Note Cards ──
@@ -294,7 +293,7 @@ const QuickLinkCard: React.FC<{
     );
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewNote, onNewTask, onViewCalendar, onViewJournal, onViewTasks, onViewFavorites, onViewAI, onViewNotebooks }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewNote, onNewTask, onViewCalendar, onViewJournal, onViewTasks, onViewFavorites, onViewAI }) => {
     const { theme } = useThemeContext();
     const dark = theme === 'dark';
     const { username } = useAuth();
@@ -309,6 +308,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
     const pendingTasks = todos.filter(t => !t.completed && t.targetDate !== tomorrowStr && t.targetDate !== dateKey);
     const notesToday = notes.filter(note => format(new Date(note.createdAt), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')).length;
     const focusTasks = todayTasks.slice(0, 4);
+    const fallbackTasks = pendingTasks.slice(0, 4);
+    const queueTasks = focusTasks.length > 0 ? focusTasks : fallbackTasks;
+    const isUsingOldTasks = focusTasks.length === 0 && queueTasks.length > 0;
     const completionRatio = todayTasks.length > 0 ? Math.round((completedToday / todayTasks.length) * 100) : 0;
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
@@ -334,7 +336,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                 maxWidth: isMobile ? '100%' : '940px',
                 margin: '0 auto',
                 padding: isMobile ? '0.9rem 1rem' : '2.2rem',
-                paddingTop: isMobile ? 'calc(var(--safe-top) + 2.25rem)' : '3rem',
+                paddingTop: isMobile ? 'calc(var(--safe-top) + 3rem)' : '3rem',
                 position: 'relative',
                 zIndex: 1,
                 display: 'flex',
@@ -392,22 +394,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                                 </div>
                                 <button onClick={onViewTasks} style={{ border: 'none', background: dark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)', color: dark ? '#c7d2fe' : '#6366f1', padding: '0.52rem 0.8rem', borderRadius: '999px', fontWeight: 700, cursor: 'pointer' }}>Open</button>
                             </div>
-                            {focusTasks.length > 0 ? (
+                            {queueTasks.length > 0 ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    {focusTasks.map((task) => (
+                                    {queueTasks.map((task) => (
                                         <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.82rem 0.9rem', borderRadius: '18px', background: softPanel, border: dark ? '1px solid rgba(148,163,184,0.08)' : '1px solid rgba(255,255,255,0.52)' }}>
                                             <button onClick={() => toggleTodo(task)} style={{ width: 22, height: 22, borderRadius: 8, flexShrink: 0, border: `2px solid ${task.completed ? '#22c55e' : 'rgba(148, 163, 184, 0.45)'}`, background: task.completed ? 'linear-gradient(135deg, #22c55e, #14b8a6)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
                                                 {task.completed && <Check size={11} color="white" strokeWidth={3} />}
                                             </button>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.58 : 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.text}</div>
-                                                <div style={{ fontSize: '0.76rem', color: muted, marginTop: '0.14rem' }}>{task.completed ? 'Completed' : 'In focus today'}</div>
+                                                <div style={{ fontSize: '0.76rem', color: muted, marginTop: '0.14rem' }}>
+                                                    {task.completed ? 'Completed' : (isUsingOldTasks ? 'Pending from backlog' : 'In focus today')}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div style={{ padding: '0.95rem', borderRadius: '18px', background: softPanel, color: 'var(--text-secondary)', lineHeight: 1.6 }}>No tasks scheduled for today.</div>
+                                <div style={{ padding: '0.95rem', borderRadius: '18px', background: softPanel, color: 'var(--text-secondary)', lineHeight: 1.6 }}>No tasks scheduled for today or backlog.</div>
                             )}
                         </motion.section>
 
@@ -444,22 +448,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                                 </div>
                                 <button onClick={onViewTasks} style={{ border: 'none', background: dark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)', color: dark ? '#c7d2fe' : '#6366f1', padding: '0.56rem 0.84rem', borderRadius: '999px', fontWeight: 700, cursor: 'pointer' }}>Open tasks</button>
                             </div>
-                            {focusTasks.length > 0 ? (
+                            {queueTasks.length > 0 ? (
                                 <div className="dashboard-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '340px', overflowY: 'auto' }}>
-                                    {focusTasks.map((task, index) => (
+                                    {queueTasks.map((task, index) => (
                                         <motion.div key={task.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.16 + index * 0.05 }} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.9rem 1rem', borderRadius: '20px', background: softPanel, border: dark ? '1px solid rgba(148,163,184,0.08)' : '1px solid rgba(255,255,255,0.55)' }}>
                                             <button onClick={() => toggleTodo(task)} style={{ width: 24, height: 24, borderRadius: 8, flexShrink: 0, border: `2px solid ${task.completed ? '#22c55e' : 'rgba(148, 163, 184, 0.45)'}`, background: task.completed ? 'linear-gradient(135deg, #22c55e, #14b8a6)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
                                                 {task.completed && <Check size={12} color="white" strokeWidth={3} />}
                                             </button>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.55 : 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</div>
-                                                <div style={{ fontSize: '0.78rem', color: muted, marginTop: '0.18rem' }}>{task.completed ? 'Completed' : 'In focus today'}</div>
+                                                <div style={{ fontSize: '0.78rem', color: muted, marginTop: '0.18rem' }}>
+                                                    {task.completed ? 'Completed' : (isUsingOldTasks ? 'Pending from backlog' : 'In focus today')}
+                                                </div>
                                             </div>
                                         </motion.div>
                                     ))}
                                 </div>
                             ) : (
-                                <div style={{ padding: '1rem', borderRadius: '20px', background: softPanel, color: 'var(--text-secondary)', lineHeight: 1.65 }}>No tasks scheduled for today.</div>
+                                <div style={{ padding: '1rem', borderRadius: '20px', background: softPanel, color: 'var(--text-secondary)', lineHeight: 1.65 }}>No tasks scheduled for today or backlog.</div>
                             )}
                         </motion.section>
                     )}
@@ -492,7 +498,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ notes, onNoteClick, onNewN
                             <QuickLinkCard icon={<Book size={18} />} title={`Notes (${totalNotes})`} subtitle="Browse your writing and recent entries" accent="#6366f1" onClick={onViewJournal} dark={dark} />
                             <QuickLinkCard icon={<Star size={18} />} title={`Favorites (${favoriteCount})`} subtitle="Open the notes you revisit most" accent="#f59e0b" onClick={onViewFavorites} dark={dark} />
                             <QuickLinkCard icon={<CalendarIcon size={18} />} title="Calendar view" subtitle="See time, plans, and note history" accent="#22c55e" onClick={onViewCalendar} dark={dark} />
-                            <QuickLinkCard icon={<Book size={18} />} title="Notebooks" subtitle="Open your curated notebook spaces" accent="#8b5cf6" onClick={onViewNotebooks} dark={dark} />
                         </motion.div>
                     )}
                 </section>

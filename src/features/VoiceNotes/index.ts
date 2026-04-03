@@ -1,1 +1,0 @@
-export { VoiceNotesTab } from './VoiceNotesTab';

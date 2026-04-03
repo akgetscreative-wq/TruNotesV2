@@ -1,5 +1,5 @@
 import { openDB, type DBSchema } from 'idb';
-import type { Note, Todo, Notebook } from '../types';
+import type { Note, Todo } from '../types';
 import { Preferences } from '@capacitor/preferences';
 import { format } from 'date-fns';
 import { WidgetBridge } from '../features/WidgetBridge';
@@ -14,11 +14,6 @@ interface TruNotesDB extends DBSchema {
         key: string;
         value: Todo;
         indexes: { 'by-date': number; 'by-target-date': string };
-    };
-    notebooks: {
-        key: string;
-        value: Notebook;
-        indexes: { 'by-date': number };
     };
     hourly_logs: {
         key: string; // date string (YYYY-MM-DD)
@@ -52,10 +47,6 @@ const dbPromise = openDB<TruNotesDB>('trunotes-db', 8, {
         }
         if (oldVersion < 7 && !db.objectStoreNames.contains('ai_sessions')) {
             db.createObjectStore('ai_sessions', { keyPath: 'id' });
-        }
-        if (oldVersion < 8 && !db.objectStoreNames.contains('notebooks')) {
-            const notebookStore = db.createObjectStore('notebooks', { keyPath: 'id' });
-            notebookStore.createIndex('by-date', 'updatedAt');
         }
         console.log("DB Upgrade complete to version", _newVersion, "using transaction:", !!transaction);
     },
@@ -409,29 +400,6 @@ export const storage = {
         await db.delete('ai_sessions', id);
         this.notifyListeners();
     },
-
-    // NOTEBOOK STORAGE
-    async getAllNotebooks(): Promise<Notebook[]> {
-        const db = await dbPromise;
-        return db.getAll('notebooks');
-    },
-
-    async getNotebook(id: string): Promise<Notebook | undefined> {
-        const db = await dbPromise;
-        return db.get('notebooks', id);
-    },
-
-    async saveNotebook(notebook: Notebook): Promise<void> {
-        const db = await dbPromise;
-        await db.put('notebooks', { ...notebook, updatedAt: Date.now() });
-        this.notifyListeners();
-    },
-
-    async deleteNotebook(id: string): Promise<void> {
-        const db = await dbPromise;
-        await db.delete('notebooks', id);
-        this.notifyListeners();
-    }
 };
 
 // Global hourly trigger to ensure widget/UI updates for new day/hour

@@ -103,7 +103,7 @@ export const TodoList: React.FC<TodoListProps> = ({ autoFocusInput, onFocusCompl
                 margin: '0 auto',
                 minHeight: '80vh',
                 position: 'relative',
-                paddingTop: isMobile ? '2rem' : '0', // Extra room for the menu button and status bar
+                paddingTop: isMobile ? 'calc(var(--safe-top) + 2.5rem)' : '0', // Extra room for the menu button and status bar
                 zIndex: 1
             }}
         >
