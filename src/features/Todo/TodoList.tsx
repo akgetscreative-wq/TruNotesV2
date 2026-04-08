@@ -219,6 +219,7 @@ export const TodoList: React.FC<TodoListProps> = ({ autoFocusInput, onFocusCompl
                             onChange={(e) => setInputValue(e.target.value)}
                             onFocus={() => setFocused(true)}
                             onBlur={() => setFocused(false)}
+                            maxLength={500}
                             style={{
                                 flex: 1,
                                 background: 'transparent',

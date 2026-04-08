@@ -153,9 +153,13 @@ export const LoginPage: React.FC = () => {
             const effectiveUsername = inputUsername || username || '';
             if (!login(effectiveUsername, password)) { setError('Incorrect credentials'); triggerShake(); }
         } else {
-            if (!inputUsername || !password) { setError('All fields required'); triggerShake(); return; }
+            const trimmedUsername = (inputUsername || '').trim();
+            if (!trimmedUsername || !password) { setError('All fields required'); triggerShake(); return; }
+            if (trimmedUsername.length < 3) { setError('Username must be at least 3 characters'); triggerShake(); return; }
+            if (trimmedUsername.length > 30) { setError('Username must be 30 characters or fewer'); triggerShake(); return; }
+            if (password.length < 8) { setError('Password must be at least 8 characters'); triggerShake(); return; }
             if (password !== confirmPassword) { setError('Passwords mismatch'); triggerShake(); return; }
-            register(inputUsername, password);
+            register(trimmedUsername, password);
         }
     };
 
@@ -266,7 +270,7 @@ export const LoginPage: React.FC = () => {
                         {!isRegistered ? (
                             <div style={{ position: 'relative' }}>
                                 <User size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '1rem', top: '1.1rem' }} />
-                                <input type="text" placeholder="Username" value={inputUsername} onChange={e => setInputUsername(e.target.value)} style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', borderRadius: '14px', border: '2px solid var(--border-subtle)', background: isDark ? '#0f172a' : '#ffffff', color: 'var(--text-primary)' }} />
+                                <input type="text" placeholder="Username" value={inputUsername} onChange={e => setInputUsername(e.target.value)} maxLength={30} style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', borderRadius: '14px', border: '2px solid var(--border-subtle)', background: isDark ? '#0f172a' : '#ffffff', color: 'var(--text-primary)' }} />
                             </div>
                         ) : (
                             <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
@@ -276,10 +280,10 @@ export const LoginPage: React.FC = () => {
                         )}
                         <div style={{ position: 'relative' }}>
                             <Lock size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '1rem', top: '1.1rem' }} />
-                            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} autoFocus={isRegistered} style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', borderRadius: '14px', border: '2px solid var(--border-subtle)', background: isDark ? '#0f172a' : '#ffffff', color: 'var(--text-primary)' }} />
+                            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} autoFocus={isRegistered} maxLength={128} style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', borderRadius: '14px', border: '2px solid var(--border-subtle)', background: isDark ? '#0f172a' : '#ffffff', color: 'var(--text-primary)' }} />
                         </div>
                         {!isRegistered && (
-                            <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} style={{ width: '100%', padding: '1rem', borderRadius: '14px', border: '2px solid var(--border-subtle)', background: isDark ? '#0f172a' : '#ffffff', color: 'var(--text-primary)' }} />
+                            <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} maxLength={128} style={{ width: '100%', padding: '1rem', borderRadius: '14px', border: '2px solid var(--border-subtle)', background: isDark ? '#0f172a' : '#ffffff', color: 'var(--text-primary)' }} />
                         )}
 
                         {error && <div style={{ color: '#ef4444', textAlign: 'center', fontSize: '0.9rem' }}>{error}</div>}
